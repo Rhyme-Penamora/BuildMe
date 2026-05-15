@@ -2,7 +2,7 @@
 # File: sandbox_game/ui/game_menu.py
 # =============================================================================
 """
-In-game ESC menu — extended for Phase 5 with all required options.
+In-game ESC menu — Phase 5 complete version.
 """
 
 import pygame
@@ -13,7 +13,7 @@ import settings
 
 class GameMenu:
     """
-    In-game pause/game menu with all Phase 5 options wired up.
+    In-game pause/game menu with all Phase 5 options.
     """
 
     def __init__(self, ui_manager: pygame_gui.UIManager):
@@ -26,7 +26,6 @@ class GameMenu:
         self.ui_manager = ui_manager
         self.active = False
 
-        # Callbacks (set by Game after init)
         self.on_save:             Optional[Callable] = None
         self.on_load:             Optional[Callable] = None
         self.on_settings:         Optional[Callable] = None
@@ -46,12 +45,10 @@ class GameMenu:
 
         self.panel = pygame_gui.elements.UIPanel(
             relative_rect=pygame.Rect(panel_x, panel_y, panel_w, panel_h),
-            manager=ui_manager,
-            starting_layer_height=10
+            manager=ui_manager
         )
         self.panel.hide()
 
-        # Title
         self.title_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(0, 12, panel_w, 32),
             text="Game Menu",
@@ -59,7 +56,6 @@ class GameMenu:
             container=self.panel
         )
 
-        # Button layout
         btn_w = int(panel_w * 0.82)
         btn_h = 44
         gap = 10
@@ -88,10 +84,6 @@ class GameMenu:
             self._buttons[key] = btn
             by += btn_h + gap
 
-    # ------------------------------------------------------------------
-    # Show / hide / toggle
-    # ------------------------------------------------------------------
-
     def show(self) -> None:
         """Show game menu."""
         self.active = True
@@ -109,13 +101,9 @@ class GameMenu:
         else:
             self.show()
 
-    # ------------------------------------------------------------------
-    # Events
-    # ------------------------------------------------------------------
-
     def handle_event(self, event: pygame.event.Event) -> bool:
         """
-        Handle button events for the game menu.
+        Handle button events.
 
         Args:
             event: pygame event
@@ -132,40 +120,33 @@ class GameMenu:
             if btn == self._buttons.get('resume'):
                 self.hide()
                 return True
-
             if btn == self._buttons.get('save'):
                 if self.on_save:
                     self.on_save()
                 self.hide()
                 return True
-
             if btn == self._buttons.get('settings'):
                 if self.on_settings:
                     self.on_settings()
                 return True
-
             if btn == self._buttons.get('help'):
                 if self.on_help:
                     self.on_help()
                 return True
-
             if btn == self._buttons.get('file_editor'):
                 if self.on_file_editor:
                     self.on_file_editor()
                 self.hide()
                 return True
-
             if btn == self._buttons.get('tutorial'):
                 if self.on_tutorial:
                     self.on_tutorial()
                 self.hide()
                 return True
-
             if btn == self._buttons.get('customize_player'):
                 if self.on_customize_player:
                     self.on_customize_player()
                 return True
-
             if btn == self._buttons.get('exit'):
                 if self.on_exit_to_menu:
                     self.on_exit_to_menu()
