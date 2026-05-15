@@ -2,201 +2,155 @@
 # File: sandbox_game/ui/developer_console.py
 # =============================================================================
 """
-Developer console for executing game commands at runtime.
+Developer console with command execution and scrollable log.
 """
 
 import pygame
 import pygame_gui
-from typing import List, Callable, Optional, Dict
+from typing import Callable, Dict, List, Optional
 import settings
 
 
 class DeveloperConsole:
     """
-    In-game developer console with command execution, history, and colored log output.
+    In-game developer console with command history and colored output.
     """
 
     def __init__(self, ui_manager: pygame_gui.UIManager):
-        """
-        Initialize developer console.
-
-        Args:
-            ui_manager: pygame_gui UIManager instance
-        """
         self.ui_manager = ui_manager
         self.active = False
-        self.command_history: List[str] = []
-        self.history_index = 0
         self.commands: Dict[str, Callable] = {}
+        self.log_lines: List[str] = []
+        self.command_history: List[str] = []
+        self.history_index = -1
 
-        screen_width = settings.SCREEN_WIDTH
-        screen_height = settings.SCREEN_HEIGHT
+        sw = settings.SCREEN_WIDTH
+        sh = settings.SCREEN_HEIGHT
 
-        console_height = int(screen_height * 0.4)
-        console_y = screen_height - console_height
+        pw = int(sw * 0.7)
+        ph = int(sh * 0.5)
+        px = (sw - pw) // 2
+        py = sh - ph - 10
 
         self.panel = pygame_gui.elements.UIPanel(
-            relative_rect=pygame.Rect(0, console_y, screen_width, console_height),
-            manager=ui_manager,
-            starting_layer_height=15
+            relative_rect=pygame.Rect(px, py, pw, ph),
+            manager=ui_manager
         )
         self.panel.hide()
 
-        log_height = console_height - 60
+        self.title_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(10, 8, pw - 20, 24),
+            text="Developer Console",
+            manager=ui_manager,
+            container=self.panel
+        )
 
-        # UITextBox supports append_html_text in pygame_gui 0.6.x
+        log_h = ph - 100
         self.log_box = pygame_gui.elements.UITextBox(
-            html_text=(
-                "<font face='monospace' size=3 color='#AAAAAA'>"
-                "Developer Console ready. Type 'listcmds' for commands."
-                "</font>"
-            ),
-            relative_rect=pygame.Rect(5, 5, screen_width - 10, log_height),
+            html_text="<font face='monospace' size=3 color='#00FF00'>Console ready. Type 'listcmds' for all commands.</font>",
+            relative_rect=pygame.Rect(10, 40, pw - 20, log_h),
             manager=ui_manager,
             container=self.panel
         )
 
-        self.input_field = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect(5, log_height + 10, screen_width - 10, 40),
+        entry_y = 40 + log_h + 6
+        self.input_entry = pygame_gui.elements.UITextEntryLine(
+            relative_rect=pygame.Rect(10, entry_y, pw - 20, 32),
             manager=ui_manager,
             container=self.panel
         )
 
-    def register_command(self, name: str, callback: Callable) -> None:
-        """
-        Register a named command with its callback.
-
-        Args:
-            name: Command name (case-insensitive match applied at call time)
-            callback: Function(args: list) to invoke
-        """
-        self.commands[name.lower()] = callback
+        self.log_lines.append(
+            "<font face='monospace' size=3 color='#00FF00'>Console ready. Type 'listcmds' for all commands.</font>"
+        )
 
     def toggle(self) -> None:
-        """Toggle console visibility."""
         if self.active:
-            self.hide()
+            self.active = False
+            self.panel.hide()
         else:
-            self.show()
+            self.active = True
+            self.panel.show()
 
-    def show(self) -> None:
-        """Show the console and focus the input field."""
-        self.active = True
-        self.panel.show()
-        self.input_field.focus()
+    def register_command(self, name: str, callback: Callable) -> None:
+        self.commands[name] = callback
 
-    def hide(self) -> None:
-        """Hide the console."""
-        self.active = False
-        self.panel.hide()
-
-    def log(self, message: str, color: str = "#FFFFFF") -> None:
-        """
-        Append a line to the console log with a given color.
-
-        Args:
-            message: Text to append
-            color: HTML hex color string e.g. '#FF0000'
-        """
-        # Escape any HTML-significant characters in the message
-        safe_message = (
-            message
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
-        html_line = f"<font face='monospace' size=3 color='{color}'>{safe_message}</font><br>"
-
-        try:
-            self.log_box.append_html_text(html_line)
-        except Exception as e:
-            print(f"Console log error: {e}")
-
-    def execute_command(self, command_str: str) -> None:
-        """
-        Parse and execute a command string.
-
-        Args:
-            command_str: Raw command string typed by user
-        """
-        command_str = command_str.strip()
-        if not command_str:
+    def execute(self, command_line: str) -> None:
+        if not command_line.strip():
             return
 
-        self.command_history.append(command_str)
+        self.command_history.append(command_line)
         self.history_index = len(self.command_history)
 
-        self.log(f"> {command_str}", "#00FF00")
-
-        parts = command_str.split()
-        cmd_name = parts[0].lower()
+        parts = command_line.split()
+        cmd = parts[0].lower()
         args = parts[1:]
 
-        if cmd_name in self.commands:
+        self.log(f"> {command_line}", "#FFFF00")
+
+        if cmd in self.commands:
             try:
-                self.commands[cmd_name](args)
+                self.commands[cmd](args)
             except Exception as e:
-                self.log(f"Error executing '{cmd_name}': {e}", "#FF0000")
+                self.log(f"Error: {e}", "#FF0000")
         else:
-            self.log(
-                f"Unknown command: '{cmd_name}'. Type 'listcmds' for all commands.",
-                "#FF0000"
-            )
+            self.log(f"Unknown command '{cmd}'. Type 'listcmds' for help.", "#FF0000")
 
-    def handle_event(self, event: pygame.event.Event) -> bool:
-        """
-        Handle events relevant to the console.
-
-        Args:
-            event: pygame event
-
-        Returns:
-            True if event was consumed
-        """
-        if not self.active:
-            return False
-
-        if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED:
-            if event.ui_element == self.input_field:
-                self.execute_command(event.text)
-                self.input_field.set_text("")
-                return True
-
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                if self.history_index > 0:
-                    self.history_index -= 1
-                    self.input_field.set_text(
-                        self.command_history[self.history_index]
-                    )
-                return True
-
-            if event.key == pygame.K_DOWN:
-                if self.history_index < len(self.command_history) - 1:
-                    self.history_index += 1
-                    self.input_field.set_text(
-                        self.command_history[self.history_index]
-                    )
-                else:
-                    self.history_index = len(self.command_history)
-                    self.input_field.set_text("")
-                return True
-
-        return False
+    def log(self, message: str, color: str = "#FFFFFF") -> None:
+        safe = message.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        self.log_lines.append(f"<font face='monospace' size=3 color='{color}'>{safe}</font>")
+        if len(self.log_lines) > 200:
+            self.log_lines = self.log_lines[-200:]
+        self._refresh_log()
 
     def clear_log(self) -> None:
-        """Clear the console log display."""
+        self.log_lines.clear()
+        self.log_lines.append(
+            "<font face='monospace' size=3 color='#00FF00'>Console cleared.</font>"
+        )
+        self._refresh_log()
+
+    def _refresh_log(self) -> None:
+        html = "<br>".join(self.log_lines)
         try:
             self.log_box.kill()
-            screen_width = settings.SCREEN_WIDTH
-            console_height = int(settings.SCREEN_HEIGHT * 0.4)
-            log_height = console_height - 60
-
+            pw = int(settings.SCREEN_WIDTH * 0.7)
+            ph = int(settings.SCREEN_HEIGHT * 0.5)
+            log_h = ph - 100
             self.log_box = pygame_gui.elements.UITextBox(
-                html_text="<font face='monospace' size=3 color='#AAAAAA'>Console cleared.</font>",
-                relative_rect=pygame.Rect(5, 5, screen_width - 10, log_height),
+                html_text=html,
+                relative_rect=pygame.Rect(10, 40, pw - 20, log_h),
                 manager=self.ui_manager,
                 container=self.panel
             )
         except Exception as e:
-            print(f"Error clearing console log: {e}")
+            print(f"Console log refresh error: {e}")
+
+    def handle_event(self, event: pygame.event.Event) -> bool:
+        if not self.active:
+            return False
+
+        if event.type == pygame_gui.UI_TEXT_ENTRY_FINISHED:
+            if event.ui_element == self.input_entry:
+                cmd = self.input_entry.get_text()
+                self.input_entry.set_text("")
+                self.execute(cmd)
+                return True
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                if self.command_history and self.history_index > 0:
+                    self.history_index -= 1
+                    self.input_entry.set_text(self.command_history[self.history_index])
+                return True
+            if event.key == pygame.K_DOWN:
+                if self.command_history:
+                    if self.history_index < len(self.command_history) - 1:
+                        self.history_index += 1
+                        self.input_entry.set_text(self.command_history[self.history_index])
+                    else:
+                        self.history_index = len(self.command_history)
+                        self.input_entry.set_text("")
+                return True
+
+        return False
