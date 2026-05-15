@@ -15,9 +15,7 @@ import settings
 
 class SpriteEditor:
     """
-    In-game sprite editor panel.
-    Handles file browsing, image validation, spritesheet setup,
-    animation definition, and live preview.
+    In-game sprite editor panel — file browse, spritesheet, animations, preview.
     """
 
     def __init__(self, ui_manager: pygame_gui.UIManager):
@@ -30,18 +28,14 @@ class SpriteEditor:
         self.ui_manager = ui_manager
         self.active = False
 
-        # Currently assigned target info
-        self.assign_target = None   # entity/tile/item/player reference
-        self.assign_category = ""   # 'sprites','tiles','items','backgrounds','ui'
+        self.assign_target = None
+        self.assign_category = ""
 
-        # Loaded image state
         self.loaded_image_path: Optional[str] = None
         self.loaded_surface: Optional[pygame.Surface] = None
 
-        # Animation definitions: {name: {'frames': [...], 'fps': int, 'loop': bool}}
         self.animations: Dict[str, Dict] = {}
 
-        # Preview state
         self._preview_anim_name: Optional[str] = None
         self._preview_frame_index = 0
         self._preview_timer = 0.0
@@ -56,12 +50,10 @@ class SpriteEditor:
 
         self.panel = pygame_gui.elements.UIPanel(
             relative_rect=pygame.Rect(px, py, pw, ph),
-            manager=ui_manager,
-            starting_layer_height=20
+            manager=ui_manager
         )
         self.panel.hide()
 
-        # Title
         self.title_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 8, pw - 20, 28),
             text="Sprite Editor",
@@ -69,7 +61,6 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # File path entry
         self.path_entry = pygame_gui.elements.UITextEntryLine(
             relative_rect=pygame.Rect(10, 46, pw - 160, 36),
             manager=ui_manager,
@@ -84,7 +75,6 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # Status label
         self.status_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 90, pw - 20, 24),
             text="No image loaded.",
@@ -92,7 +82,6 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # Spritesheet grid settings
         self.cols_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 122, 100, 24),
             text="Columns:",
@@ -126,7 +115,6 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # Animation definition
         self.anim_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 160, pw - 20, 24),
             text="Animation — Name | Frames (0,1,2) | FPS | Loop",
@@ -170,7 +158,6 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # Animation list display
         self.anim_list = pygame_gui.elements.UITextBox(
             html_text="<font size=3>No animations defined.</font>",
             relative_rect=pygame.Rect(10, 232, pw - 20, 80),
@@ -178,7 +165,6 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # Assign target selector
         self.assign_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 322, 120, 28),
             text="Assign to:",
@@ -199,17 +185,12 @@ class SpriteEditor:
             container=self.panel
         )
 
-        # Close button
         self.close_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(pw - 110, ph - 50, 100, 36),
             text="Close",
             manager=ui_manager,
             container=self.panel
         )
-
-    # ------------------------------------------------------------------
-    # Show / hide
-    # ------------------------------------------------------------------
 
     def show(self, target=None, category: str = "sprites") -> None:
         """
@@ -228,10 +209,6 @@ class SpriteEditor:
         """Hide the sprite editor."""
         self.active = False
         self.panel.hide()
-
-    # ------------------------------------------------------------------
-    # Image loading
-    # ------------------------------------------------------------------
 
     def _load_image(self, path: str) -> None:
         """
@@ -262,10 +239,6 @@ class SpriteEditor:
         except pygame.error as e:
             self.status_label.set_text(f"Failed to load image: {e}")
 
-    # ------------------------------------------------------------------
-    # Animation helpers
-    # ------------------------------------------------------------------
-
     def _toggle_loop(self) -> None:
         """Toggle loop flag on the animation loop button."""
         self._anim_loop = not self._anim_loop
@@ -286,7 +259,7 @@ class SpriteEditor:
         try:
             frames = [int(f.strip()) for f in frames_text.split(",") if f.strip()]
         except ValueError:
-            self.status_label.set_text("Frames must be comma-separated integers e.g. 0,1,2")
+            self.status_label.set_text("Frames must be comma-separated integers.")
             return
 
         try:
@@ -313,7 +286,8 @@ class SpriteEditor:
                 frames_str = ",".join(str(f) for f in data['frames'])
                 loop_str = "loop" if data['loop'] else "once"
                 lines.append(
-                    f"<b>{name}</b>: frames [{frames_str}] @ {data['fps']}fps — {loop_str}"
+                    f"<b>{name}</b>: frames [{frames_str}] "
+                    f"@ {data['fps']}fps — {loop_str}"
                 )
             html = "<font size=3>" + "<br>".join(lines) + "</font>"
 
@@ -329,22 +303,17 @@ class SpriteEditor:
         except Exception as e:
             print(f"Anim list refresh error: {e}")
 
-    # ------------------------------------------------------------------
-    # Assign sprite
-    # ------------------------------------------------------------------
-
     def _assign_sprite(self, world_name: str) -> None:
         """
-        Copy image into world assets and assign to target object.
+        Copy image into world assets and assign to target.
 
         Args:
             world_name: Current world name for directory resolution
         """
         if not self.loaded_image_path or not self.loaded_surface:
-            self.status_label.set_text("No image loaded. Load an image first.")
+            self.status_label.set_text("No image loaded.")
             return
 
-        # Determine destination directory
         world_dir = os.path.join("worlds", world_name)
         dest_dir = os.path.join(world_dir, "assets", self.assign_category)
         os.makedirs(dest_dir, exist_ok=True)
@@ -358,23 +327,14 @@ class SpriteEditor:
             self.status_label.set_text(f"Copy error: {e}")
             return
 
-        # Assign to target if available
         if self.assign_target is not None:
             self.assign_target.sprite_path = dest_path
             self.assign_target.sprite_surface = self.loaded_surface.copy()
             if self.animations:
                 self.assign_target.animations = dict(self.animations)
-            self.status_label.set_text(
-                f"Sprite assigned: {filename}"
-            )
+            self.status_label.set_text(f"Sprite assigned: {filename}")
         else:
-            self.status_label.set_text(
-                f"Sprite saved to assets (no target selected): {filename}"
-            )
-
-    # ------------------------------------------------------------------
-    # Update (preview animation)
-    # ------------------------------------------------------------------
+            self.status_label.set_text(f"Sprite saved (no target): {filename}")
 
     def update(self, dt: float) -> None:
         """
@@ -404,7 +364,7 @@ class SpriteEditor:
 
     def render_preview(self, screen: pygame.Surface) -> None:
         """
-        Draw the sprite preview onto the screen.
+        Draw sprite preview onto screen.
 
         Args:
             screen: pygame display surface
@@ -412,7 +372,6 @@ class SpriteEditor:
         if not self.active or not self.loaded_surface:
             return
 
-        # Preview box position (bottom-right corner of panel)
         sw = settings.SCREEN_WIDTH
         sh = settings.SCREEN_HEIGHT
         pw = int(sw * 0.75)
@@ -424,23 +383,17 @@ class SpriteEditor:
         preview_x = px + pw - preview_size - 10
         preview_y = py + ph - preview_size - 60
 
-        # Draw border
         pygame.draw.rect(
-            screen,
-            settings.COLORS['white'],
-            pygame.Rect(preview_x - 2, preview_y - 2, preview_size + 4, preview_size + 4),
+            screen, settings.COLORS['white'],
+            pygame.Rect(preview_x - 2, preview_y - 2,
+                        preview_size + 4, preview_size + 4),
             2
         )
 
-        # Scale surface to preview box
         preview_surf = pygame.transform.scale(
             self.loaded_surface, (preview_size, preview_size)
         )
         screen.blit(preview_surf, (preview_x, preview_y))
-
-    # ------------------------------------------------------------------
-    # Event handling
-    # ------------------------------------------------------------------
 
     def handle_event(self, event: pygame.event.Event, world_name: str = "") -> bool:
         """
@@ -462,8 +415,7 @@ class SpriteEditor:
                 return True
 
             if event.ui_element == self.browse_button:
-                path = self.path_entry.get_text()
-                self._load_image(path)
+                self._load_image(self.path_entry.get_text())
                 return True
 
             if event.ui_element == self.grid_apply_button:
@@ -475,7 +427,7 @@ class SpriteEditor:
                         fw = w // max(1, cols)
                         fh = h // max(1, rows)
                         self.status_label.set_text(
-                            f"Grid applied: {cols}x{rows}, frame size {fw}x{fh}px"
+                            f"Grid: {cols}x{rows}, frame {fw}x{fh}px"
                         )
                 except ValueError:
                     self.status_label.set_text("Columns and rows must be integers.")
