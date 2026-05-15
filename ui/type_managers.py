@@ -2,15 +2,12 @@
 # File: sandbox_game/ui/type_managers.py
 # =============================================================================
 """
-In-game type manager panels for tiles, entities, and items.
-All accessible from within the game — no external file editing needed.
+In-game type manager panels for tiles and items.
 """
 
-import os
-import json
 import pygame
 import pygame_gui
-from typing import Optional, Dict, Any, List
+from typing import Dict
 import settings
 from inventory.item_registry import item_registry
 
@@ -40,8 +37,7 @@ class TileTypeManager:
 
         self.panel = pygame_gui.elements.UIPanel(
             relative_rect=pygame.Rect(px, py, pw, ph),
-            manager=ui_manager,
-            starting_layer_height=14
+            manager=ui_manager
         )
         self.panel.hide()
 
@@ -52,9 +48,9 @@ class TileTypeManager:
             container=self.panel
         )
 
-        # Tile list (left)
         list_w = int(pw * 0.38)
         list_h = ph - 100
+
         self.tile_list = pygame_gui.elements.UISelectionList(
             relative_rect=pygame.Rect(10, 44, list_w, list_h),
             item_list=list(settings.DEFAULT_TILE_TYPES.keys()),
@@ -62,17 +58,14 @@ class TileTypeManager:
             container=self.panel
         )
 
-        # Detail area (right)
         dx = list_w + 20
         dw = pw - dx - 10
-        row_h = 30
-        row_gap = 8
         y = 44
 
         def lbl(text: str) -> None:
             nonlocal y
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(dx, y, dw, row_h),
+                relative_rect=pygame.Rect(dx, y, dw, 28),
                 text=text,
                 manager=ui_manager,
                 container=self.panel
@@ -80,44 +73,44 @@ class TileTypeManager:
 
         lbl("Name:")
         self._name_entry = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect(dx, y + row_h, dw, 30),
+            relative_rect=pygame.Rect(dx, y + 28, dw, 30),
             manager=ui_manager,
             container=self.panel
         )
-        y += row_h + 30 + row_gap
+        y += 66
 
         lbl("Solid (yes/no):")
         self._solid_entry = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect(dx, y + row_h, dw, 30),
+            relative_rect=pygame.Rect(dx, y + 28, dw, 30),
             manager=ui_manager,
             container=self.panel
         )
-        y += row_h + 30 + row_gap
+        y += 66
 
-        lbl("Movement modifier (0.0 - 1.0):")
+        lbl("Movement modifier (0.0-1.0):")
         self._mod_entry = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect(dx, y + row_h, dw, 30),
+            relative_rect=pygame.Rect(dx, y + 28, dw, 30),
             manager=ui_manager,
             container=self.panel
         )
-        y += row_h + 30 + row_gap
+        y += 66
 
         lbl("Color R,G,B (e.g. 100,100,100):")
         self._color_entry = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect(dx, y + row_h, dw, 30),
+            relative_rect=pygame.Rect(dx, y + 28, dw, 30),
             manager=ui_manager,
             container=self.panel
         )
-        y += row_h + 30 + row_gap
+        y += 66
 
         self._add_btn = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(dx, y, 90, 30),
+            relative_rect=pygame.Rect(dx, y, 110, 30),
             text="Add/Update",
             manager=ui_manager,
             container=self.panel
         )
         self._delete_btn = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(dx + 100, y, 80, 30),
+            relative_rect=pygame.Rect(dx + 120, y, 80, 30),
             text="Delete",
             manager=ui_manager,
             container=self.panel
@@ -129,7 +122,6 @@ class TileTypeManager:
             manager=ui_manager,
             container=self.panel
         )
-
         self._close_btn = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(pw - 110, ph - 42, 100, 32),
             text="Close",
@@ -173,9 +165,14 @@ class TileTypeManager:
             if not name:
                 self._status.set_text("Name cannot be empty.")
                 return
-            is_solid = self._solid_entry.get_text().strip().lower() in ('yes', 'true', '1')
+            is_solid = self._solid_entry.get_text().strip().lower() in (
+                'yes', 'true', '1'
+            )
             mod = float(self._mod_entry.get_text().strip())
-            parts = [int(p.strip()) for p in self._color_entry.get_text().split(',')]
+            parts = [
+                int(p.strip())
+                for p in self._color_entry.get_text().split(',')
+            ]
             color = (
                 max(0, min(255, parts[0])),
                 max(0, min(255, parts[1])),
@@ -192,13 +189,12 @@ class TileTypeManager:
             self._status.set_text(f"Input error: {e}")
 
     def _delete_selected(self) -> None:
-        """Delete selected custom tile type (built-ins protected)."""
+        """Delete selected custom tile type — built-ins are protected."""
         selected = self.tile_list.get_single_selection()
         if not selected:
             self._status.set_text("Select a tile type to delete.")
             return
-        built_ins = {'floor', 'wall', 'water', 'void'}
-        if selected in built_ins:
+        if selected in {'floor', 'wall', 'water', 'void'}:
             self._status.set_text("Cannot delete built-in tile types.")
             return
         settings.DEFAULT_TILE_TYPES.pop(selected, None)
@@ -262,8 +258,7 @@ class ItemTypeManager:
 
         self.panel = pygame_gui.elements.UIPanel(
             relative_rect=pygame.Rect(px, py, pw, ph),
-            manager=ui_manager,
-            starting_layer_height=14
+            manager=ui_manager
         )
         self.panel.hide()
 
@@ -289,11 +284,11 @@ class ItemTypeManager:
         y = 44
 
         fields = [
-            ("ID:", '_id_entry', "stick"),
-            ("Name:", '_name_entry', "Stick"),
-            ("Description:", '_desc_entry', "A plain stick."),
-            ("Stackable (yes/no):", '_stack_entry', "yes"),
-            ("Max Stack:", '_maxstack_entry', "64"),
+            ("ID:",                  '_id_entry',       "stick"),
+            ("Name:",                '_name_entry',     "Stick"),
+            ("Description:",         '_desc_entry',     "A plain stick."),
+            ("Stackable (yes/no):",  '_stack_entry',    "yes"),
+            ("Max Stack:",           '_maxstack_entry', "64"),
         ]
         for label_text, attr, default in fields:
             pygame_gui.elements.UILabel(
@@ -365,7 +360,9 @@ class ItemTypeManager:
         self._id_entry.set_text(item_id)
         self._name_entry.set_text(data.get('name', ''))
         self._desc_entry.set_text(data.get('description', ''))
-        self._stack_entry.set_text("yes" if data.get('stackable', True) else "no")
+        self._stack_entry.set_text(
+            "yes" if data.get('stackable', True) else "no"
+        )
         self._maxstack_entry.set_text(str(data.get('max_stack', 64)))
 
     def _add_or_update(self) -> None:
@@ -377,7 +374,9 @@ class ItemTypeManager:
                 self._status.set_text("ID and Name are required.")
                 return
             desc = self._desc_entry.get_text().strip()
-            stackable = self._stack_entry.get_text().strip().lower() in ('yes', 'true', '1')
+            stackable = self._stack_entry.get_text().strip().lower() in (
+                'yes', 'true', '1'
+            )
             max_stack = max(1, int(self._maxstack_entry.get_text().strip()))
 
             item_registry.register_item(item_id, {
