@@ -3,7 +3,6 @@
 # =============================================================================
 """
 Full settings menu: display, controls, mobile, game rules, world, audio, UI.
-All settings persist to settings.json (global) or worlds/[name]/settings.json.
 """
 
 import os
@@ -12,6 +11,8 @@ import pygame
 import pygame_gui
 from typing import Optional, Callable, Dict, Any
 import settings
+
+MIN_BTN = 48
 
 
 class SettingsMenu:
@@ -32,16 +33,13 @@ class SettingsMenu:
         self.active = False
         self._current_tab = "Display"
 
-        # Runtime copies of settings (loaded on open)
         self._keybindings: Dict[str, int] = dict(settings.KEYBINDINGS)
         self._game_rules: Dict[str, bool] = dict(settings.GAME_RULES)
         self._global: Dict[str, Any] = dict(settings.GLOBAL_SETTINGS)
 
-        # Callbacks
         self.on_apply: Optional[Callable[[Dict, Dict, Dict], None]] = None
         self.on_close: Optional[Callable] = None
 
-        # Keybinding re-map state
         self._remapping_action: Optional[str] = None
 
         sw = settings.SCREEN_WIDTH
@@ -54,12 +52,10 @@ class SettingsMenu:
 
         self.panel = pygame_gui.elements.UIPanel(
             relative_rect=pygame.Rect(px, py, pw, ph),
-            manager=ui_manager,
-            starting_layer_height=15
+            manager=ui_manager
         )
         self.panel.hide()
 
-        # Title
         self.title_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 8, pw - 20, 28),
             text="Settings",
@@ -67,18 +63,18 @@ class SettingsMenu:
             container=self.panel
         )
 
-        # Tab buttons
         tab_w = max(80, (pw - 20) // len(self._TABS))
         for i, tab in enumerate(self._TABS):
             btn = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(10 + i * tab_w, 44, tab_w - 4, 30),
+                relative_rect=pygame.Rect(
+                    10 + i * tab_w, 44, tab_w - 4, 30
+                ),
                 text=tab,
                 manager=ui_manager,
                 container=self.panel
             )
             setattr(self, f"_tab_btn_{tab.lower().replace(' ', '_')}", btn)
 
-        # Content area
         content_y = 84
         content_h = ph - content_y - 56
         self._content_rect = pygame.Rect(10, content_y, pw - 20, content_h)
@@ -90,10 +86,8 @@ class SettingsMenu:
             container=self.panel
         )
 
-        # Dynamic controls (built per tab)
         self._dynamic_elements = []
 
-        # Apply / Close buttons
         btn_y = ph - 48
         self.apply_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(10, btn_y, 110, 38),
@@ -108,7 +102,6 @@ class SettingsMenu:
             container=self.panel
         )
 
-        # Status line
         self.status_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(130, btn_y + 4, pw - 270, 30),
             text="",
@@ -116,13 +109,9 @@ class SettingsMenu:
             container=self.panel
         )
 
-    # ------------------------------------------------------------------
-    # Show / hide
-    # ------------------------------------------------------------------
-
     def show(self, tab: str = "Display") -> None:
         """
-        Show settings menu.
+        Show settings menu on the given tab.
 
         Args:
             tab: Initial tab to display
@@ -147,10 +136,6 @@ class SettingsMenu:
             self.hide()
         else:
             self.show()
-
-    # ------------------------------------------------------------------
-    # Tab switching
-    # ------------------------------------------------------------------
 
     def _switch_tab(self, tab: str) -> None:
         """
@@ -187,7 +172,7 @@ class SettingsMenu:
 
     def _make_label(self, text: str, y: int, x: int = 10) -> pygame_gui.elements.UILabel:
         """
-        Create a label inside the panel's content area.
+        Create a label inside the content area.
 
         Args:
             text: Label text
@@ -213,12 +198,7 @@ class SettingsMenu:
         return lbl
 
     def _make_button(
-        self,
-        text: str,
-        y: int,
-        x: int = 10,
-        w: int = 180,
-        h: int = 32,
+        self, text: str, y: int, x: int = 10, w: int = 180, h: int = 32
     ) -> pygame_gui.elements.UIButton:
         """
         Create a button inside the content area.
@@ -237,8 +217,7 @@ class SettingsMenu:
             relative_rect=pygame.Rect(
                 self._content_rect.x + x,
                 self._content_rect.y + y,
-                w,
-                h,
+                w, h
             ),
             text=text,
             manager=self.ui_manager,
@@ -248,11 +227,7 @@ class SettingsMenu:
         return btn
 
     def _make_entry(
-        self,
-        default: str,
-        y: int,
-        x: int = 200,
-        w: int = 120,
+        self, default: str, y: int, x: int = 200, w: int = 120
     ) -> pygame_gui.elements.UITextEntryLine:
         """
         Create a text entry inside the content area.
@@ -270,8 +245,7 @@ class SettingsMenu:
             relative_rect=pygame.Rect(
                 self._content_rect.x + x,
                 self._content_rect.y + y,
-                w,
-                30,
+                w, 30
             ),
             manager=self.ui_manager,
             container=self.panel
@@ -280,43 +254,30 @@ class SettingsMenu:
         self._dynamic_elements.append(entry)
         return entry
 
-    # ------------------------------------------------------------------
-    # Tab builders
-    # ------------------------------------------------------------------
-
     def _build_display_tab(self) -> None:
         """Build Display settings tab controls."""
         y = 4
         self._make_label("Display Settings", y)
         y += 32
-
         self._make_label(
             f"Fullscreen: {'ON' if self._global.get('fullscreen') else 'OFF'}", y
         )
-        self._fs_toggle = self._make_button(
-            "Toggle Fullscreen", y, x=240, w=170
-        )
+        self._fs_toggle = self._make_button("Toggle Fullscreen", y, x=240, w=170)
         y += 38
-
         self._make_label(f"Target FPS: {self._global.get('target_fps', 60)}", y)
         self._fps_entry = self._make_entry(
             str(self._global.get('target_fps', 60)), y, x=200, w=80
         )
-        self._fps_label_ref = self._make_label("(restart may be needed)", y, x=290)
         y += 38
-
         self._make_label("Resolution: 1280x720 (fixed)", y)
-        y += 38
-        self._make_label("More display options in future updates.", y)
 
     def _build_controls_tab(self) -> None:
         """Build Controls (keybinding remapping) tab."""
         y = 4
-        self._make_label("Click an action button then press a key to remap.", y)
+        self._make_label("Click an action then press a new key to remap.", y)
         y += 32
 
         self._kb_buttons: Dict[str, pygame_gui.elements.UIButton] = {}
-
         for action, key_const in self._keybindings.items():
             key_name = pygame.key.name(key_const).upper()
             lbl_text = f"{action:<20} →  {key_name}"
@@ -326,27 +287,22 @@ class SettingsMenu:
             self._kb_buttons[action] = btn
             y += 34
             if y > self._content_rect.height - 40:
-                break  # Prevent overflow
+                break
 
     def _build_mobile_tab(self) -> None:
         """Build Mobile controls settings tab."""
         y = 4
         self._make_label("Mobile / Virtual Controls", y)
         y += 32
-
         mob_state = "ON" if self._global.get('mobile_controls') else "OFF"
         self._make_label(f"Virtual controls: {mob_state}", y)
         self._mob_toggle = self._make_button("Toggle Mobile Controls", y, x=240, w=200)
         y += 38
-
-        self._make_label(
-            f"D-pad size: {self._global.get('dpad_size', 80)}px", y
-        )
+        self._make_label(f"D-pad size: {self._global.get('dpad_size', 80)}px", y)
         self._dpad_entry = self._make_entry(
             str(self._global.get('dpad_size', 80)), y, x=200, w=80
         )
         y += 38
-
         self._make_label(
             f"Action button size: {self._global.get('action_btn_size', 64)}px", y
         )
@@ -359,14 +315,15 @@ class SettingsMenu:
     def _build_game_rules_tab(self) -> None:
         """Build Game Rules toggles tab."""
         y = 4
-        self._make_label("Game Rules (toggle affects gameplay immediately)", y)
+        self._make_label("Game Rules (changes apply immediately)", y)
         y += 32
 
         self._rule_buttons: Dict[str, pygame_gui.elements.UIButton] = {}
         for rule, value in self._game_rules.items():
             state = "ON" if value else "OFF"
             btn = self._make_button(
-                f"{rule.replace('_', ' ').title()}: {state}", y, x=10, w=280, h=32
+                f"{rule.replace('_', ' ').title()}: {state}",
+                y, x=10, w=280, h=32
             )
             self._rule_buttons[rule] = btn
             y += 40
@@ -374,29 +331,22 @@ class SettingsMenu:
     def _build_world_tab(self) -> None:
         """Build World settings tab."""
         y = 4
-        self._make_label("World Settings (per-world, saved to worlds/[name]/settings.json)", y)
+        self._make_label("World Settings", y)
         y += 32
-
         self._make_label("Auto-save interval (seconds):", y)
         self._autosave_entry = self._make_entry("60", y, x=260, w=80)
         y += 38
-
         self._make_label("World expansion limit (tiles):", y)
         self._expand_entry = self._make_entry("200", y, x=260, w=80)
         y += 38
-
         self._make_label("Entity spawn limit:", y)
         self._spawn_limit_entry = self._make_entry("100", y, x=200, w=80)
         y += 38
-
         self._make_label("Inventory slot count:", y)
         self._inv_slots_entry = self._make_entry("20", y, x=200, w=80)
-        y += 38
-
-        self._make_label("(Apply to save these to world settings.json)", y)
 
     def _build_audio_tab(self) -> None:
-        """Build Audio settings tab (volume slider, no audio system yet)."""
+        """Build Audio settings tab."""
         y = 4
         self._make_label("Audio Settings", y)
         y += 32
@@ -411,43 +361,30 @@ class SettingsMenu:
         y = 4
         self._make_label("UI & Theme Settings", y)
         y += 32
-
-        self._make_label(
-            f"Font scale: {self._global.get('font_scale', 1.0)}", y
-        )
+        self._make_label(f"Font scale: {self._global.get('font_scale', 1.0)}", y)
         self._font_scale_entry = self._make_entry(
             str(self._global.get('font_scale', 1.0)), y, x=160, w=80
         )
         y += 38
-
         self._make_label("HUD Editor — toggle HUD elements:", y)
         y += 28
-        self._hud_mode_btn = self._make_button("HUD: show mode", y, x=10, w=200)
+        self._hud_mode_btn   = self._make_button("HUD: show mode",     y, x=10, w=200)
         y += 36
-        self._hud_pos_btn = self._make_button("HUD: show position", y, x=10, w=200)
+        self._hud_pos_btn    = self._make_button("HUD: show position",  y, x=10, w=200)
         y += 36
-        self._hud_tile_btn = self._make_button("HUD: show tile", y, x=10, w=200)
+        self._hud_tile_btn   = self._make_button("HUD: show tile",      y, x=10, w=200)
         y += 36
-        self._hud_health_btn = self._make_button("HUD: show health", y, x=10, w=200)
-        y += 38
-
-        self._make_label("Theme: theme editor in ui_theme.json (auto-applied on load)", y)
-
-    # ------------------------------------------------------------------
-    # Apply
-    # ------------------------------------------------------------------
+        self._hud_health_btn = self._make_button("HUD: show health",    y, x=10, w=200)
 
     def _apply_settings(self) -> None:
         """Read all dynamic UI elements and persist settings."""
-        # Display — FPS
         try:
-            fps_text = getattr(self, '_fps_entry', None)
-            if fps_text:
-                self._global['target_fps'] = max(10, int(fps_text.get_text()))
+            fps_e = getattr(self, '_fps_entry', None)
+            if fps_e:
+                self._global['target_fps'] = max(10, int(fps_e.get_text()))
         except (ValueError, AttributeError):
             pass
 
-        # Mobile
         try:
             dpad_e = getattr(self, '_dpad_entry', None)
             if dpad_e:
@@ -462,30 +399,29 @@ class SettingsMenu:
         except (ValueError, AttributeError):
             pass
 
-        # Audio
         try:
             vol_e = getattr(self, '_vol_entry', None)
             if vol_e:
-                self._global['volume'] = max(0.0, min(1.0, int(vol_e.get_text()) / 100.0))
+                self._global['volume'] = max(
+                    0.0, min(1.0, int(vol_e.get_text()) / 100.0)
+                )
         except (ValueError, AttributeError):
             pass
 
-        # Font scale
         try:
             fs_e = getattr(self, '_font_scale_entry', None)
             if fs_e:
-                self._global['font_scale'] = max(0.5, min(3.0, float(fs_e.get_text())))
+                self._global['font_scale'] = max(
+                    0.5, min(3.0, float(fs_e.get_text()))
+                )
         except (ValueError, AttributeError):
             pass
 
-        # Push to live settings module
         settings.KEYBINDINGS.update(self._keybindings)
         settings.GAME_RULES.update(self._game_rules)
         settings.GLOBAL_SETTINGS.update(self._global)
 
-        # Save global settings.json
         self._save_global()
-
         self.status_label.set_text("Settings applied.")
 
         if self.on_apply:
@@ -510,24 +446,17 @@ class SettingsMenu:
             if os.path.exists("settings.json"):
                 with open("settings.json", 'r') as f:
                     data = json.load(f)
-                kb = data.get('keybindings', {})
-                for action, key in kb.items():
+                for action, key in data.get('keybindings', {}).items():
                     if action in settings.KEYBINDINGS:
                         settings.KEYBINDINGS[action] = int(key)
-                gr = data.get('game_rules', {})
-                for rule, val in gr.items():
+                for rule, val in data.get('game_rules', {}).items():
                     if rule in settings.GAME_RULES:
                         settings.GAME_RULES[rule] = bool(val)
-                gl = data.get('global', {})
-                for key, val in gl.items():
+                for key, val in data.get('global', {}).items():
                     if key in settings.GLOBAL_SETTINGS:
                         settings.GLOBAL_SETTINGS[key] = val
         except Exception as e:
             print(f"Settings load error: {e}")
-
-    # ------------------------------------------------------------------
-    # Event handling
-    # ------------------------------------------------------------------
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """
@@ -542,7 +471,6 @@ class SettingsMenu:
         if not self.active:
             return False
 
-        # Keybinding remap: intercept KEYDOWN when waiting for a new key
         if self._remapping_action and event.type == pygame.KEYDOWN:
             self._keybindings[self._remapping_action] = event.key
             settings.KEYBINDINGS[self._remapping_action] = event.key
@@ -562,7 +490,6 @@ class SettingsMenu:
                 self._apply_settings()
                 return True
 
-            # Tab switching
             for tab in self._TABS:
                 attr = f"_tab_btn_{tab.lower().replace(' ', '_')}"
                 btn = getattr(self, attr, None)
@@ -570,19 +497,18 @@ class SettingsMenu:
                     self._switch_tab(tab)
                     return True
 
-            # Display tab — fullscreen toggle
             if hasattr(self, '_fs_toggle') and event.ui_element == self._fs_toggle:
                 self._global['fullscreen'] = not self._global.get('fullscreen', False)
                 self._switch_tab("Display")
                 return True
 
-            # Mobile tab — toggle
             if hasattr(self, '_mob_toggle') and event.ui_element == self._mob_toggle:
-                self._global['mobile_controls'] = not self._global.get('mobile_controls', False)
+                self._global['mobile_controls'] = not self._global.get(
+                    'mobile_controls', False
+                )
                 self._switch_tab("Mobile")
                 return True
 
-            # Controls tab — keybinding buttons
             if hasattr(self, '_kb_buttons'):
                 for action, btn in self._kb_buttons.items():
                     if event.ui_element == btn:
@@ -590,7 +516,6 @@ class SettingsMenu:
                         self._switch_tab("Controls")
                         return True
 
-            # Game rules toggles
             if hasattr(self, '_rule_buttons'):
                 for rule, btn in self._rule_buttons.items():
                     if event.ui_element == btn:
@@ -599,7 +524,6 @@ class SettingsMenu:
                         self._switch_tab("Game Rules")
                         return True
 
-            # HUD toggle buttons
             from core.event_bus import event_bus
             hud_map = {
                 '_hud_mode_btn':   'hud_toggle_mode',
@@ -614,7 +538,3 @@ class SettingsMenu:
                     return True
 
         return False
-
-
-# Expose MIN_BTN for use in MobileControls
-MIN_BTN = 48
