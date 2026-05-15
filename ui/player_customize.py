@@ -5,7 +5,6 @@
 Player customization panel — name, speed, health, sprite, size.
 """
 
-import os
 import pygame
 import pygame_gui
 from typing import Optional, Callable
@@ -27,8 +26,6 @@ class PlayerCustomizePanel:
         self.ui_manager = ui_manager
         self.active = False
         self.player = None
-
-        # Callback when sprite should be opened
         self.on_open_sprite_editor: Optional[Callable] = None
 
         sw = settings.SCREEN_WIDTH
@@ -41,12 +38,10 @@ class PlayerCustomizePanel:
 
         self.panel = pygame_gui.elements.UIPanel(
             relative_rect=pygame.Rect(px, py, pw, ph),
-            manager=ui_manager,
-            starting_layer_height=14
+            manager=ui_manager
         )
         self.panel.hide()
 
-        # Title
         self.title = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(10, 8, pw - 20, 28),
             text="Customize Player",
@@ -61,7 +56,7 @@ class PlayerCustomizePanel:
         y = 46
 
         def _row(label_text: str) -> pygame_gui.elements.UITextEntryLine:
-            """Helper: create a label+entry row, advance y, return entry."""
+            """Create label + entry row, return entry widget."""
             nonlocal y
             pygame_gui.elements.UILabel(
                 relative_rect=pygame.Rect(10, y, lbl_w, row_h),
@@ -83,7 +78,6 @@ class PlayerCustomizePanel:
         self._w_entry     = _row("Width (px):")
         self._h_entry     = _row("Height (px):")
 
-        # Sprite button
         self._sprite_btn = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(10, y, 180, 36),
             text="Change Sprite…",
@@ -92,7 +86,6 @@ class PlayerCustomizePanel:
         )
         y += 46
 
-        # Apply / Close
         self._apply_btn = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(10, ph - 50, 110, 36),
             text="Apply",
@@ -105,18 +98,12 @@ class PlayerCustomizePanel:
             manager=ui_manager,
             container=self.panel
         )
-
-        # Status
         self._status = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(130, ph - 46, pw - 260, 30),
             text="",
             manager=ui_manager,
             container=self.panel
         )
-
-    # ------------------------------------------------------------------
-    # Show / hide
-    # ------------------------------------------------------------------
 
     def show(self, player) -> None:
         """
@@ -129,9 +116,13 @@ class PlayerCustomizePanel:
         self.active = True
 
         self._name_entry.set_text(getattr(player, 'name', 'Player'))
-        self._speed_entry.set_text(str(getattr(player, 'speed', settings.PLAYER_SPEED)))
+        self._speed_entry.set_text(
+            str(getattr(player, 'speed', settings.PLAYER_SPEED))
+        )
         self._hp_entry.set_text(str(getattr(player, 'max_health', 100)))
-        w, h = getattr(player, 'size', (settings.PLAYER_SIZE, settings.PLAYER_SIZE))
+        w, h = getattr(
+            player, 'size', (settings.PLAYER_SIZE, settings.PLAYER_SIZE)
+        )
         self._w_entry.set_text(str(int(w)))
         self._h_entry.set_text(str(int(h)))
 
@@ -142,27 +133,21 @@ class PlayerCustomizePanel:
         self.active = False
         self.panel.hide()
 
-    # ------------------------------------------------------------------
-    # Apply changes
-    # ------------------------------------------------------------------
-
     def _apply(self) -> None:
         """Read form fields and update player attributes."""
         if not self.player:
             return
-
         try:
             name = self._name_entry.get_text().strip()
             if name:
                 self.player.name = name
 
-            speed = float(self._speed_entry.get_text())
-            self.player.speed = max(10.0, speed)
+            self.player.speed = max(10.0, float(self._speed_entry.get_text()))
 
-            max_hp = int(self._hp_entry.get_text())
-            self.player.max_health = max(1, max_hp)
+            max_hp = max(1, int(self._hp_entry.get_text()))
+            self.player.max_health = max_hp
             if hasattr(self.player, 'health'):
-                self.player.health = min(self.player.health, self.player.max_health)
+                self.player.health = min(self.player.health, max_hp)
 
             w = max(8, int(self._w_entry.get_text()))
             h = max(8, int(self._h_entry.get_text()))
@@ -171,10 +156,6 @@ class PlayerCustomizePanel:
             self._status.set_text("Applied.")
         except ValueError as e:
             self._status.set_text(f"Error: {e}")
-
-    # ------------------------------------------------------------------
-    # Events
-    # ------------------------------------------------------------------
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """
