@@ -1,93 +1,52 @@
 # BuildMe
 
-A top-down 2D sandbox building game written in Python using `pygame-ce` and `pygame_gui`.
+BuildMe is a 2D sandbox building game written in Python using `pygame-ce` and `pygame_gui`.
 
-BuildMe focuses on:
-- tile-based world building
-- editable sandbox worlds
+The project combines:
+- tile-based world editing
+- sandbox world management
 - entity spawning
-- world saving/loading
-- build mode editing
-- customizable tile systems
-- expandable maps
-- live in-game editing foundations
+- in-game editors
+- UI tools
+- scripting-related systems
+- modular game architecture
+
+The repository is currently under active development.
 
 ---
 
-# Features
+# Overview
 
-## Current Working Features
+BuildMe starts from a main menu where worlds can be created, loaded, and deleted.
 
-### World System
-- Create worlds from the main menu
-- Load existing worlds
-- Delete saved worlds
-- Automatic JSON world persistence
-- Auto-save support
-- Expandable tile maps
+Inside a world, the player can:
+- move around the map
+- enter build mode
+- place and delete tiles
+- inspect map tiles
+- spawn entities
+- open various editor panels
+- interact with sandbox systems
 
-### Tile System
-- Grid-based tile placement
-- Multiple tile types
-- Tile deletion
-- Tile inspection
-- Tile selection mode
-- Solid and non-solid tiles
-- Movement modifiers
-- Tile map expansion
-
-### Build Mode
-Press `B` to enter build mode.
-
-Available editor modes:
-- Place
-- Delete
-- Inspect
-- Select
-
-### Entity System
-- Spawn NPCs
-- Spawn enemies
-- Entity serialization
-- Basic entity editing
-- Collision support
-- Player movement
-
-### UI System
-- Main menu
-- World list
-- In-game HUD
-- Popup dialogs
-- Build UI
-- Tile palette
-- Basic pygame_gui integration
-
-### Rendering
-- Camera movement
-- Tile rendering
-- Grid rendering
-- Entity rendering
-- Basic culling optimization
-
-### File Structure
-- Modular engine architecture
-- Separate systems for world, UI, entities, editor, and rendering
+The project is structured around separate systems for rendering, world management, UI, entities, editing tools, and scripting.
 
 ---
 
 # Requirements
 
-- Python 3.9+
-- pygame-ce
-- pygame_gui
+## Python
 
-Install dependencies:
+- Python 3.9 or newer
+
+## Dependencies
+
+Install dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Or manually:
+Or install manually:
 
 ```bash
 pip install pygame-ce pygame_gui
@@ -97,38 +56,270 @@ pip install pygame-ce pygame_gui
 
 # Running The Game
 
+From the repository root:
+
 ```bash
 cd BuildMe
 python3 main.py
 ```
 
+On some Linux systems, ALSA warnings may appear during startup:
+
+```text
+ALSA lib ...
+```
+
+These warnings are common with pygame audio initialization and do not necessarily indicate a fatal problem.
+
 ---
 
-# Controls
+# Main Menu
 
-## Movement
+The main menu is responsible for world management.
+
+Current functionality includes:
+- creating worlds
+- loading worlds
+- deleting worlds
+- displaying saved world lists
+
+World data is stored inside the `worlds/` directory.
+
+---
+
+# Gameplay
+
+## Player Movement
+
+The player moves in a top-down environment.
+
+### Controls
 
 | Key | Action |
 |------|--------|
-| W A S D | Move player |
+| W | Move Up |
+| A | Move Left |
+| S | Move Down |
+| D | Move Right |
 
-## General
+The camera follows the player position.
+
+---
+
+# Build Mode
+
+Build mode allows direct editing of the tile map.
+
+Press:
+
+```text
+B
+```
+
+to toggle build mode.
+
+When active, the tile editor UI becomes available.
+
+## Build Mode Controls
 
 | Key | Action |
 |------|--------|
-| B | Toggle build mode |
-| ESC | Exit menus / quit |
+| 1 | Place Mode |
+| 2 | Delete Mode |
+| 3 | Inspect Mode |
+| 4 | Select Mode |
+| Left Click | Use Current Tool |
+| Mouse Wheel | Cycle Tile Types |
+| [ | Previous Tile |
+| ] | Next Tile |
+| E | Open Entity Editor |
 
-## Build Mode
+---
+
+# Tile Editing
+
+The tile editor supports:
+- tile placement
+- tile deletion
+- tile inspection
+- tile selection
+- tile palette UI
+- tile map expansion hooks
+
+The editor reads tile definitions from `settings.DEFAULT_TILE_TYPES`.
+
+Tile data includes:
+- tile type
+- collision state
+- movement modifiers
+- color data
+
+## Place Mode
+
+Places the currently selected tile.
+
+## Delete Mode
+
+Replaces tiles with the default floor tile.
+
+## Inspect Mode
+
+Prints tile information to the terminal.
+
+## Tile Cycling
+
+Available tile types can be cycled using:
+- mouse wheel
+- `[` key
+- `]` key
+
+The selected tile is displayed through build mode feedback.
+
+---
+
+# Entity Editor
+
+The entity editor is used for spawning entities into the world.
+
+Press:
+
+```text
+E
+```
+
+while in build mode to open the entity editor.
+
+## Current Entity Types
+
+The repository currently includes:
+- NPC entities
+- Enemy entities
+- Player entity
+
+## Entity Editor Controls
 
 | Key | Action |
 |------|--------|
-| 1 | Place mode |
-| 2 | Delete mode |
-| 3 | Inspect mode |
-| 4 | Select mode |
-| E | Entity editor |
-| Left Click | Use active tool |
+| Mouse Wheel | Cycle Entity Types |
+| [ | Previous Entity |
+| ] | Next Entity |
+| Left Click | Spawn Selected Entity |
+
+Entity spawning currently supports:
+- NPC spawning
+- Enemy spawning
+- grid-aligned placement
+- world bounds checking
+
+---
+
+# HUD
+
+The game contains an in-game HUD system.
+
+Current HUD functionality includes:
+- mode display
+- world display
+- player position display
+- health display
+- selected tile display
+- control hints
+
+The HUD dynamically updates during gameplay.
+
+---
+
+# UI Systems
+
+The repository contains multiple UI systems and editor panels.
+
+Existing UI-related modules include:
+
+- Main Menu
+- HUD
+- Game Menu
+- Settings Menu
+- Developer Console
+- Help Panel
+- Tutorial System
+- Popup System
+- Player Customization Panel
+- Tile Type Manager
+- Item Type Manager
+- Mobile Controls
+
+Some systems may still be incomplete or experimental.
+
+---
+
+# Scripting Systems
+
+The repository contains scripting-related modules.
+
+Included scripting systems:
+- scripting API
+- sandbox module
+- validator module
+- hot reload manager
+
+The README only documents their presence in the repository and does not assume all scripting features are fully implemented.
+
+---
+
+# Inventory And Item Systems
+
+The repository includes:
+- inventory editor modules
+- item registry systems
+- item type management systems
+
+Implementation completeness may vary between systems.
+
+---
+
+# World System
+
+The world system includes:
+- world loading
+- world saving
+- auto-save support
+- world metadata
+- tile map management
+- entity persistence
+
+World-related modules include:
+- `world.py`
+- `tile.py`
+- `tile_map.py`
+- `world_manager.py`
+
+---
+
+# Rendering System
+
+The rendering system handles:
+- tile rendering
+- entity rendering
+- grid rendering
+- camera offset rendering
+- tile hover highlighting
+- resize-aware culling
+
+The renderer dynamically reads the active window size.
+
+---
+
+# Window Resizing
+
+The game window is configured as resizable.
+
+Current resize-related functionality includes:
+- runtime resize handling
+- dynamic HUD scaling
+- dynamic renderer updates
+- UI manager resolution updates
+
+Some UI layouts may still require additional polish.
 
 ---
 
@@ -142,7 +333,10 @@ BuildMe/
 │
 ├── core/
 │   ├── game.py
-│   └── renderer.py
+│   ├── renderer.py
+│   ├── input_handler.py
+│   ├── event_bus.py
+│   └── hot_reload.py
 │
 ├── world/
 │   ├── world.py
@@ -158,66 +352,37 @@ BuildMe/
 │
 ├── editor/
 │   ├── tile_editor.py
-│   └── entity_editor.py
+│   ├── entity_editor.py
+│   ├── code_editor.py
+│   ├── inventory_editor.py
+│   ├── sprite_editor.py
+│   └── file_editor.py
 │
 ├── ui/
-│   └── main_menu.py
+│   ├── hud.py
+│   ├── main_menu.py
+│   ├── game_menu.py
+│   ├── settings_menu.py
+│   ├── developer_console.py
+│   ├── help_panel.py
+│   ├── tutorial.py
+│   ├── popup.py
+│   └── player_customize.py
 │
+├── scripting/
+├── inventory/
 └── worlds/
 ```
 
 ---
 
-# Current Limitations
+# Current State Of The Project
 
-These systems are still incomplete or planned:
+BuildMe is still actively evolving.
 
-- fully responsive window resizing
-- inventory UI
-- hotbar/block selection navigation
-- advanced scripting tools
-- multiplayer
-- optimized chunk rendering
-- animation system
-- crafting system
-- audio system
-- mobile support
+Some systems are functional and playable, while others appear to be partially implemented, experimental, or under development.
 
----
-
-# Known Issues
-
-## Linux ALSA Warnings
-
-Some Linux systems display ALSA warnings when launching pygame:
-
-```text
-ALSA lib ...
-```
-
-These warnings are harmless and do not affect gameplay.
-
-## Window Resize Behavior
-
-The game window is marked resizable, but dynamic UI/layout resizing is still under development.
-
----
-
-# Development Goals
-
-Planned future systems:
-
-- inventory and hotbar
-- drag-and-drop blocks
-- scripting API
-- in-game code editor
-- advanced entity AI
-- procedural generation
-- custom sprites
-- chunk streaming
-- lighting system
-- crafting and resources
-- multiplayer support
+This README intentionally avoids claiming features that could not be verified directly from the repository structure and accessible source files.
 
 ---
 
