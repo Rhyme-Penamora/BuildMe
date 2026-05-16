@@ -33,7 +33,6 @@ class TileMap:
         for y in range(height):
             row = []
             for x in range(width):
-                # Create floor tiles by default
                 tile_data = settings.DEFAULT_TILE_TYPES['floor']
                 row.append(Tile(
                     tile_type='floor',
@@ -46,7 +45,32 @@ class TileMap:
     def is_in_bounds(self, x: int, y: int) -> bool:
         """Return True if the given grid coordinate exists inside the map."""
         return 0 <= x < self.width and 0 <= y < self.height
-    
+
+    def is_at_edge(self, x: int, y: int) -> bool:
+        """Return True if the tile is on the border of the map."""
+        return x == 0 or y == 0 or x == self.width - 1 or y == self.height - 1
+
+    def get_expansion_direction(self, x: int, y: int) -> Optional[str]:
+        """
+        Return the expansion direction needed to reach (x, y), or None if already in bounds.
+
+        Args:
+            x: Grid x coordinate
+            y: Grid y coordinate
+
+        Returns:
+            'north', 'south', 'east', 'west', or None
+        """
+        if x < 0:
+            return 'west'
+        if y < 0:
+            return 'north'
+        if x >= self.width:
+            return 'east'
+        if y >= self.height:
+            return 'south'
+        return None
+
     def get_tile(self, x: int, y: int) -> Optional[Tile]:
         """
         Get tile at grid coordinates.
@@ -109,13 +133,16 @@ class TileMap:
         world_y = grid_y * self.tile_size
         return (world_x, world_y)
     
-    def expand(self, direction: str, amount: int) -> None:
+    def expand(self, direction: str, amount: int) -> bool:
         """
         Expand the tile map in a given direction.
         
         Args:
             direction: 'north', 'south', 'east', or 'west'
             amount: Number of tiles to add
+
+        Returns:
+            True if expansion was performed, False if direction was invalid
         """
         tile_data = settings.DEFAULT_TILE_TYPES['floor']
         
@@ -131,6 +158,7 @@ class TileMap:
                 ]
                 self.tiles.insert(0, new_row)
             self.height += amount
+            return True
         
         elif direction == 'south':
             for _ in range(amount):
@@ -144,6 +172,7 @@ class TileMap:
                 ]
                 self.tiles.append(new_row)
             self.height += amount
+            return True
         
         elif direction == 'east':
             for row in self.tiles:
@@ -155,6 +184,7 @@ class TileMap:
                         color=tile_data['color']
                     ))
             self.width += amount
+            return True
         
         elif direction == 'west':
             for row in self.tiles:
@@ -166,6 +196,9 @@ class TileMap:
                         color=tile_data['color']
                     ))
             self.width += amount
+            return True
+
+        return False
     
     def render(self, surface: pygame.Surface, camera_offset: Tuple[float, float]) -> None:
         """
@@ -180,17 +213,12 @@ class TileMap:
                 tile = self.tiles[y][x]
                 world_x, world_y = self.grid_to_world(x, y)
                 
-                # Apply camera offset
                 screen_x = world_x - camera_offset[0]
                 screen_y = world_y - camera_offset[1]
                 
-                # Only draw if on screen (simple culling)
                 if (-self.tile_size <= screen_x <= settings.SCREEN_WIDTH and
                     -self.tile_size <= screen_y <= settings.SCREEN_HEIGHT):
                     
-                    # Draw tile
                     rect = pygame.Rect(screen_x, screen_y, self.tile_size, self.tile_size)
                     pygame.draw.rect(surface, tile.color, rect)
-                    
-                    # Draw grid lines
                     pygame.draw.rect(surface, settings.COLORS['grid_line'], rect, 1)
