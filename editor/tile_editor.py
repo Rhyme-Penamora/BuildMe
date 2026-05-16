@@ -1,5 +1,5 @@
 # =============================================================================
-# File: sandbox_game/editor/tile_editor.py
+# File: BuildMe/editor/tile_editor.py
 # =============================================================================
 """
 Tile editor — Place/Delete/Inspect/Select with expansion support.
@@ -24,6 +24,9 @@ class TileEditor:
         self.selected_tile_type = "floor"
         self.tile_palette_visible = False
         self.on_expansion_needed: Optional[Callable[[str], None]] = None
+
+        self.tile_types = list(settings.DEFAULT_TILE_TYPES.keys())
+        self.selected_tile_index = 0
 
         sw = settings.SCREEN_WIDTH
         sh = settings.SCREEN_HEIGHT
@@ -53,7 +56,6 @@ class TileEditor:
 
         self.tile_buttons = {}
         for tile_type in settings.DEFAULT_TILE_TYPES:
-            td = settings.DEFAULT_TILE_TYPES[tile_type]
             btn = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(6, y, pw - 12, btn_h),
                 text=tile_type.capitalize(),
@@ -74,8 +76,12 @@ class TileEditor:
         y = sub_label_y + 24
 
         self._sub_buttons = {}
-        for key, label in [("Place","1:Place"),("Delete","2:Delete"),
-                            ("Inspect","3:Inspect"),("Select","4:Select")]:
+        for key, label in [
+            ("Place", "1:Place"),
+            ("Delete", "2:Delete"),
+            ("Inspect", "3:Inspect"),
+            ("Select", "4:Select")
+        ]:
             btn = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(6, y, pw - 12, 32),
                 text=label,
@@ -88,6 +94,7 @@ class TileEditor:
     def activate(self) -> None:
         self.active = True
         self.palette_panel.show()
+        print(f"[BUILD MODE] Selected tile: {self.selected_tile_type}")
 
     def deactivate(self) -> None:
         self.active = False
@@ -101,19 +108,49 @@ class TileEditor:
 
     def set_sub_mode(self, mode: str) -> None:
         self.sub_mode = mode
+        print(f"[BUILD MODE] Mode changed to: {mode}")
+
+    def _cycle_tile_selection(self, direction: int) -> None:
+        """Cycle through available tile types."""
+        self.selected_tile_index = (
+            self.selected_tile_index + direction
+        ) % len(self.tile_types)
+
+        self.selected_tile_type = self.tile_types[self.selected_tile_index]
+
+        print(f"[BUILD MODE] Selected tile: {self.selected_tile_type}")
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         if not self.active:
             return False
+
+        if event.type == pygame.MOUSEWHEEL:
+            self._cycle_tile_selection(-event.y)
+            return True
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFTBRACKET:
+                self._cycle_tile_selection(-1)
+                return True
+
+            if event.key == pygame.K_RIGHTBRACKET:
+                self._cycle_tile_selection(1)
+                return True
+
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
-            for tile_type, btn in self.tile_buttons.items():
+            for index, (tile_type, btn) in enumerate(self.tile_buttons.items()):
                 if event.ui_element == btn:
                     self.selected_tile_type = tile_type
+                    self.selected_tile_index = index
+                    print(f"[BUILD MODE] Selected tile: {tile_type}")
                     return True
+
             for mode, btn in self._sub_buttons.items():
                 if event.ui_element == btn:
                     self.sub_mode = mode
+                    print(f"[BUILD MODE] Mode changed to: {mode}")
                     return True
+
         return False
 
     def update(
@@ -124,6 +161,7 @@ class TileEditor:
     ) -> None:
         if not self.active:
             return
+
         if input_handler.is_mouse_button_just_pressed(0):
             mx, my = input_handler.get_mouse_pos()
 
@@ -132,6 +170,7 @@ class TileEditor:
             ph = int(settings.SCREEN_HEIGHT * 0.5)
             px = settings.SCREEN_WIDTH - pw - 8
             py = int(settings.SCREEN_HEIGHT * 0.25)
+
             if pygame.Rect(px, py, pw, ph).collidepoint(mx, my):
                 return
 
@@ -164,6 +203,7 @@ class TileEditor:
                 self.on_expansion_needed(direction)
 
         td = settings.DEFAULT_TILE_TYPES.get(self.selected_tile_type)
+
         if td:
             tile_map.set_tile(x, y, Tile(
                 self.selected_tile_type,
@@ -175,13 +215,19 @@ class TileEditor:
     def _delete_tile(self, tile_map: TileMap, x: int, y: int) -> None:
         if not tile_map.is_in_bounds(x, y):
             return
+
         td = settings.DEFAULT_TILE_TYPES['floor']
+
         tile_map.set_tile(x, y, Tile(
-            'floor', td['is_solid'], td['movement_modifier'], td['color']
+            'floor',
+            td['is_solid'],
+            td['movement_modifier'],
+            td['color']
         ))
 
     def _inspect_tile(self, tile_map: TileMap, x: int, y: int) -> None:
         tile = tile_map.get_tile(x, y)
+
         if tile:
             print(
                 f"Tile ({x},{y}): type={tile.tile_type} "
