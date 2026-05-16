@@ -1,37 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # =============================================================================
 # File: sandbox_game/core/game.py
 # =============================================================================
@@ -1077,4 +1043,174 @@ class Game:
                 ("save",                     "Save world"),
                 ("clear",                    "Clear console"),
                 ("listworlds",               "List worlds"),
-                ("listcmds",             
+                ("listcmds",                 "List commands"),
+                ("listitems",                "List inventory"),
+                ("giveitem [id] [qty]",      "Give item"),
+                ("settilecode [x] [y]",      "Edit tile script"),
+                ("setworldbg [path]",        "Set background"),
+                ("setplayersprite [path]",   "Set player sprite"),
+                ("opentilemanager",          "Tile type manager"),
+                ("openitemmanager",          "Item type manager"),
+                ("opencustomize",            "Player customize"),
+                ("opensettings",             "Settings menu"),
+                ("help [command]",           "Help for command"),
+            ]
+            for name, desc in rows:
+                self.console.log(f"  {name:<34} {desc}", "#FFFFFF")
+            self.tutorial.notify_task_complete("run_listcmds")
+
+        def cmd_listitems(args):
+            if not self.player:
+                self.console.log("No player.", "#FF0000")
+                return
+            has = False
+            for i, item in enumerate(self.player.inventory.slots):
+                if item:
+                    has = True
+                    self.console.log(
+                        f"  [{i}] {item.name} x{item.quantity} ({item.item_id})",
+                        "#FFFFFF"
+                    )
+            if not has:
+                self.console.log("  Empty.", "#FFFF00")
+
+        def cmd_giveitem(args):
+            if not args:
+                self.console.log("Usage: giveitem [id] [qty]", "#FFFF00")
+                return
+            item_id = args[0]
+            qty = int(args[1]) if len(args) > 1 else 1
+            if not self.player:
+                self.console.log("No player.", "#FF0000")
+                return
+            if not item_registry.get_item_type(item_id):
+                self.console.log(f"Unknown item '{item_id}'.", "#FF0000")
+                return
+            ok = self.api.give_item(self.player, item_id, qty)
+            name = item_registry.get_item_type(item_id)['name']
+            self.console.log(
+                f"Gave {qty}x {name}." if ok else "Inventory full.",
+                "#00FF00" if ok else "#FF0000"
+            )
+
+        def cmd_settilecode(args):
+            if len(args) < 2:
+                self.console.log("Usage: settilecode [x] [y]", "#FFFF00")
+                return
+            try:
+                x, y = int(args[0]), int(args[1])
+            except ValueError:
+                self.console.log("Coordinates must be integers.", "#FF0000")
+                return
+            if not self.current_world:
+                self.console.log("No world.", "#FF0000")
+                return
+            tile = self.current_world.tile_map.get_tile(x, y)
+            if not tile:
+                self.console.log(f"No tile at ({x},{y}).", "#FF0000")
+                return
+            world_dir = os.path.join(
+                "worlds",
+                self.world_manager._sanitize_filename(self.current_world.name)
+            )
+            sp = os.path.join(world_dir, "behaviors", "tiles", f"tile_{x}_{y}.py")
+            self.code_editor.open(
+                sp, self.code_editor.get_template("tile", f"{tile.tile_type}_{x}_{y}")
+            )
+            tile.behavior_script = sp
+            self.console.log(f"Opened tile editor ({x},{y}).", "#00FF00")
+            self.tutorial.notify_task_complete("open_code_editor")
+
+        def cmd_setworldbg(args):
+            if not args:
+                self.console.log("Usage: setworldbg [path]", "#FFFF00")
+                return
+            path = " ".join(args)
+            if not os.path.exists(path):
+                self.console.log(f"Not found: {path}", "#FF0000")
+                return
+            if self.current_world:
+                self.current_world.metadata['background_image'] = path
+                self._load_background(path)
+                self.console.log("Background set.", "#00FF00")
+
+        def cmd_setplayersprite(args):
+            if not args:
+                self.console.log("Usage: setplayersprite [path]", "#FFFF00")
+                return
+            path = " ".join(args)
+            if not os.path.exists(path):
+                self.console.log(f"Not found: {path}", "#FF0000")
+                return
+            if self.player:
+                try:
+                    self.player.sprite_surface = (
+                        pygame.image.load(path).convert_alpha()
+                    )
+                    self.player.sprite_path = path
+                    self.console.log("Sprite set.", "#00FF00")
+                except Exception as e:
+                    self.console.log(f"Error: {e}", "#FF0000")
+
+        def cmd_opentilemanager(args):
+            self.tile_type_manager.show()
+            self.console.log("Tile manager opened.", "#00FF00")
+
+        def cmd_openitemmanager(args):
+            self.item_type_manager.show()
+            self.console.log("Item manager opened.", "#00FF00")
+
+        def cmd_opencustomize(args):
+            self._open_player_customize()
+            self.console.log("Player customize opened.", "#00FF00")
+
+        def cmd_opensettings(args):
+            self._open_settings()
+            self.console.log("Settings opened.", "#00FF00")
+
+        def cmd_help(args):
+            if not args:
+                cmd_listcmds([])
+                return
+            help_map = {
+                'spawn':           "spawn [type] [x] [y]  Types: npc, enemy",
+                'settile':         f"settile [x] [y] [type]  Auto-expands world. Types: {', '.join(settings.DEFAULT_TILE_TYPES)}",
+                'tp':              "tp [x] [y]  Teleport player to tile coords",
+                'listentities':    "List all entities with id and position",
+                'reload':          "reload [id]  Force reload behavior script",
+                'save':            "Force save world to disk",
+                'clear':           "Clear console log",
+                'listworlds':      "List all saved worlds",
+                'listcmds':        "List all commands",
+                'listitems':       "List player inventory",
+                'giveitem':        "giveitem [id] [qty]  Add item to inventory",
+                'settilecode':     "settilecode [x] [y]  Open tile script editor",
+                'setworldbg':      "setworldbg [path]  Set world background PNG/JPG",
+                'setplayersprite': "setplayersprite [path]  Set player sprite",
+                'opentilemanager': "Open in-game tile type manager",
+                'openitemmanager': "Open in-game item type manager",
+                'opencustomize':   "Open player customization panel",
+                'opensettings':    "Open settings menu",
+                'help':            "help [command]  Show help for command",
+            }
+            name = args[0].lower()
+            if name in help_map:
+                self.console.log(help_map[name], "#00FF00")
+            else:
+                self.console.log(f"No help for '{name}'.", "#FF0000")
+
+        cmds = {
+            'spawn': cmd_spawn, 'settile': cmd_settile, 'tp': cmd_tp,
+            'listentities': cmd_listentities, 'reload': cmd_reload,
+            'save': cmd_save, 'clear': cmd_clear, 'listworlds': cmd_listworlds,
+            'listcmds': cmd_listcmds, 'listitems': cmd_listitems,
+            'giveitem': cmd_giveitem, 'settilecode': cmd_settilecode,
+            'setworldbg': cmd_setworldbg, 'setplayersprite': cmd_setplayersprite,
+            'opentilemanager': cmd_opentilemanager,
+            'openitemmanager': cmd_openitemmanager,
+            'opencustomize': cmd_opencustomize,
+            'opensettings': cmd_opensettings,
+            'help': cmd_help,
+        }
+        for name, fn in cmds.items():
+            self.console.register_command(name, fn)
