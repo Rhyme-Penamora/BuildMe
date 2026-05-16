@@ -2,31 +2,25 @@
 # File: sandbox_game/main.py
 # =============================================================================
 """
-Entry point for Build Me — handles main menu loop and world loading.
+Entry point for Build Me.
 """
 
 import sys
+import os
 import pygame
 import pygame_gui
 
 from core.game import Game
 from ui.main_menu import MainMenu
 from world.world_manager import WorldManager
-from world.world import World
 import settings
 
 
 def run_main_menu(screen: pygame.Surface) -> str:
-    """
-    Run the main menu and return the selected world name.
-
-    Args:
-        screen: pygame display surface
-
-    Returns:
-        World name string or empty string if user quit
-    """
-    ui_manager = pygame_gui.UIManager((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+    """Run main menu loop, return selected world name or empty string."""
+    ui_manager = pygame_gui.UIManager(
+        (settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT)
+    )
     world_manager = WorldManager()
     main_menu = MainMenu(screen, ui_manager)
     main_menu.populate_world_list(world_manager.list_worlds())
@@ -55,17 +49,15 @@ def run_main_menu(screen: pygame.Surface) -> str:
 
     while running and main_menu.active:
         dt = clock.tick(settings.FPS) / 1000.0
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit(0)
-
             ui_manager.process_events(event)
             main_menu.handle_event(event)
 
         ui_manager.update(dt)
-        screen.fill(settings.COLORS['background'])
+        screen.fill((15, 15, 25))
         ui_manager.draw_ui(screen)
         pygame.display.flip()
 
@@ -74,14 +66,10 @@ def run_main_menu(screen: pygame.Surface) -> str:
 
 
 def main() -> int:
-    """
-    Initialize pygame, run main menu, load world, run game loop.
-
-    Returns:
-        Exit code (0 = success, 1 = error)
-    """
+    """Initialize pygame, run menu, load world, run game."""
     try:
         pygame.init()
+
         screen = pygame.display.set_mode(
             (settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT),
             pygame.RESIZABLE
@@ -89,23 +77,18 @@ def main() -> int:
         pygame.display.set_caption(settings.GAME_TITLE)
 
         world_name = run_main_menu(screen)
-
         if not world_name:
             return 0
 
-        # Load selected world
         world_manager = WorldManager()
         world = world_manager.load_world(world_name)
-
         if world is None:
-            print(f"Failed to load '{world_name}', creating fresh world.")
+            print(f"Failed to load '{world_name}', creating fresh.")
             world = world_manager.create_world(world_name)
 
-        # Run game
         game = Game(screen)
         game.load_world(world)
         game.run()
-
         return 0
 
     except Exception as e:
