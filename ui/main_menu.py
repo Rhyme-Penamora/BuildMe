@@ -2,7 +2,7 @@
 # File: sandbox_game/ui/main_menu.py
 # =============================================================================
 """
-Main menu for world selection and management.
+Main menu — modern dark UI with world list and management.
 """
 
 import pygame
@@ -13,18 +13,9 @@ import settings
 
 
 class MainMenu:
-    """
-    Main menu screen showing available worlds with create/load/delete options.
-    """
+    """Modern main menu with world selection."""
 
     def __init__(self, screen: pygame.Surface, ui_manager: pygame_gui.UIManager):
-        """
-        Initialize main menu.
-
-        Args:
-            screen: Main pygame display surface
-            ui_manager: pygame_gui UIManager instance
-        """
         self.screen = screen
         self.ui_manager = ui_manager
         self.active = True
@@ -34,89 +25,107 @@ class MainMenu:
         self.on_delete_world: Optional[Callable] = None
         self.current_popup: Optional[Popup] = None
         self._new_world_window: Optional[pygame_gui.elements.UIWindow] = None
-        self._new_world_entry: Optional[pygame_gui.elements.UITextEntryLine] = None
-        self._new_world_confirm: Optional[pygame_gui.elements.UIButton] = None
+        self._new_world_entry = None
+        self._new_world_confirm = None
 
         sw = settings.SCREEN_WIDTH
         sh = settings.SCREEN_HEIGHT
 
-        # Title label
+        # Title
         self.title_label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(0, int(sh * 0.05), sw, int(sh * 0.1)),
-            text=settings.GAME_TITLE,
+            relative_rect=pygame.Rect(0, int(sh * 0.06), sw, int(sh * 0.09)),
+            text="BUILD ME",
             manager=ui_manager
         )
 
-        # World list (centered, 40% width, 50% height)
-        list_w = int(sw * 0.4)
-        list_h = int(sh * 0.5)
-        list_x = (sw - list_w) // 2
-        list_y = int(sh * 0.2)
+        self.subtitle_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(0, int(sh * 0.15), sw, int(sh * 0.05)),
+            text="Programmable Sandbox Engine",
+            manager=ui_manager
+        )
+
+        # World list panel
+        panel_w = int(sw * 0.42)
+        panel_h = int(sh * 0.55)
+        panel_x = (sw - panel_w) // 2
+        panel_y = int(sh * 0.23)
 
         self.world_list = pygame_gui.elements.UISelectionList(
-            relative_rect=pygame.Rect(list_x, list_y, list_w, list_h),
+            relative_rect=pygame.Rect(panel_x, panel_y, panel_w, panel_h),
             item_list=[],
             manager=ui_manager
         )
 
-        # Buttons row below the list
-        btn_w = int(list_w * 0.3)
-        btn_h = 50
-        gap = 15
-        total_btn_w = btn_w * 3 + gap * 2
-        btn_start_x = (sw - total_btn_w) // 2
-        btn_y = list_y + list_h + 20
+        # Buttons
+        btn_w = int(panel_w * 0.3)
+        btn_h = 48
+        gap = 12
+        total = btn_w * 3 + gap * 2
+        bx = (sw - total) // 2
+        by = panel_y + panel_h + 18
 
         self.new_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(btn_start_x, btn_y, btn_w, btn_h),
+            relative_rect=pygame.Rect(bx, by, btn_w, btn_h),
             text="New World",
             manager=ui_manager
         )
         self.load_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(btn_start_x + btn_w + gap, btn_y, btn_w, btn_h),
-            text="Load World",
+            relative_rect=pygame.Rect(bx + btn_w + gap, by, btn_w, btn_h),
+            text="Play",
             manager=ui_manager
         )
         self.delete_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(btn_start_x + (btn_w + gap) * 2, btn_y, btn_w, btn_h),
-            text="Delete World",
+            relative_rect=pygame.Rect(bx + (btn_w + gap) * 2, by, btn_w, btn_h),
+            text="Delete",
+            manager=ui_manager
+        )
+
+        # Version label
+        self.version_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(0, sh - 32, sw, 28),
+            text="v1.0  |  Python 3.9  |  pygame-ce",
             manager=ui_manager
         )
 
     def populate_world_list(self, worlds: List[Dict]) -> None:
-        """
-        Populate the world selection list.
+        import time as _t
+        items = []
+        for w in worlds:
+            lp = _t.strftime("%Y-%m-%d", _t.localtime(w.get('last_played', 0)))
+            items.append(f"{w['name']}   (last played: {lp})")
+        self._world_names = [w['name'] for w in worlds]
+        self.world_list.set_item_list(items)
 
-        Args:
-            worlds: List of world metadata dicts (must contain 'name')
-        """
-        self.world_list.set_item_list([w['name'] for w in worlds])
+    def _get_selected_name(self) -> Optional[str]:
+        sel = self.world_list.get_single_selection()
+        if sel is None:
+            return None
+        idx = self.world_list.item_list.index({'text': sel, 'selected': True}) if False else None
+        # Match by index in display list
+        try:
+            display_items = [
+                item['text'] if isinstance(item, dict) else item
+                for item in self.world_list.item_list
+            ]
+            i = display_items.index(sel)
+            return self._world_names[i] if i < len(self._world_names) else sel
+        except (ValueError, AttributeError):
+            # Fallback: strip the last-played suffix
+            return sel.split("   (")[0].strip()
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        """
-        Handle all UI events for the main menu.
-
-        Args:
-            event: pygame event
-
-        Returns:
-            True if event was consumed
-        """
-        # Popup gets priority
         if self.current_popup and self.current_popup.active:
             if self.current_popup.handle_event(event):
                 return True
             if not self.current_popup.active:
                 self.current_popup = None
 
-        # New world window confirm button
         if (self._new_world_window is not None and
                 event.type == pygame_gui.UI_BUTTON_PRESSED and
                 event.ui_element == self._new_world_confirm):
             self._submit_new_world()
             return True
 
-        # New world window closed via X
         if (self._new_world_window is not None and
                 event.type == pygame_gui.UI_WINDOW_CLOSE and
                 event.ui_element == self._new_world_window):
@@ -131,74 +140,61 @@ class MainMenu:
                 return True
 
             if event.ui_element == self.load_button:
-                selected = self.world_list.get_single_selection()
-                if selected:
-                    self.selected_world = selected
+                name = self._get_selected_name()
+                if name:
+                    self.selected_world = name
                     if self.on_world_selected:
-                        self.on_world_selected(selected)
+                        self.on_world_selected(name)
                     self.active = False
                 return True
 
             if event.ui_element == self.delete_button:
-                selected = self.world_list.get_single_selection()
-                if selected:
-                    self._show_delete_confirmation(selected)
+                name = self._get_selected_name()
+                if name:
+                    self._show_delete_confirmation(name)
                 return True
 
         if event.type == pygame_gui.UI_SELECTION_LIST_DOUBLE_CLICKED_SELECTION:
             if event.ui_element == self.world_list:
-                self.selected_world = event.text
+                name = event.text.split("   (")[0].strip()
+                self.selected_world = name
                 if self.on_world_selected:
-                    self.on_world_selected(event.text)
+                    self.on_world_selected(name)
                 self.active = False
                 return True
 
         return False
 
     def _show_new_world_dialog(self) -> None:
-        """Open a small window with a text entry for the new world name."""
         if self._new_world_window is not None:
-            return  # Already open
-
+            return
         sw = settings.SCREEN_WIDTH
         sh = settings.SCREEN_HEIGHT
-        win_w = int(sw * 0.3)
-        win_h = 160
-        win_x = (sw - win_w) // 2
-        win_y = (sh - win_h) // 2
-
+        ww, wh = int(sw * 0.32), 160
         self._new_world_window = pygame_gui.elements.UIWindow(
-            rect=pygame.Rect(win_x, win_y, win_w, win_h),
+            rect=pygame.Rect((sw - ww) // 2, (sh - wh) // 2, ww, wh),
             manager=self.ui_manager,
             window_display_title="New World"
         )
-
-        # Text entry inside the window
         self._new_world_entry = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect(10, 10, win_w - 30, 40),
+            relative_rect=pygame.Rect(10, 10, ww - 30, 40),
             manager=self.ui_manager,
             container=self._new_world_window
         )
-        self._new_world_entry.set_text("New World")
-
-        # Confirm button
+        self._new_world_entry.set_text("My World")
         self._new_world_confirm = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(10, 60, win_w - 30, 40),
+            relative_rect=pygame.Rect(10, 58, ww - 30, 40),
             text="Create",
             manager=self.ui_manager,
             container=self._new_world_window
         )
 
     def _submit_new_world(self) -> None:
-        """Read the name entry and call on_new_world callback."""
         if self._new_world_entry is None:
             return
-
         name = self._new_world_entry.get_text().strip()
         if name and self.on_new_world:
             self.on_new_world(name)
-
-        # Close window
         if self._new_world_window:
             self._new_world_window.kill()
         self._new_world_window = None
@@ -206,16 +202,9 @@ class MainMenu:
         self._new_world_confirm = None
 
     def _show_delete_confirmation(self, world_name: str) -> None:
-        """
-        Show confirmation popup before deleting a world.
-
-        Args:
-            world_name: Name of world to delete
-        """
         def confirm():
             if self.on_delete_world:
                 self.on_delete_world(world_name)
-
         self.current_popup = Popup(
             self.ui_manager,
             "Delete World",
@@ -225,12 +214,13 @@ class MainMenu:
         )
 
     def cleanup(self) -> None:
-        """Destroy all UI elements belonging to this menu."""
         self.title_label.kill()
+        self.subtitle_label.kill()
         self.world_list.kill()
         self.new_button.kill()
         self.load_button.kill()
         self.delete_button.kill()
+        self.version_label.kill()
         if self._new_world_window:
             self._new_world_window.kill()
         if self.current_popup and self.current_popup.active:
