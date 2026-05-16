@@ -85,7 +85,7 @@ KEYBINDINGS = {
     'inventory':    pygame.K_TAB,
     'console':      pygame.K_BACKQUOTE,
     'help':         pygame.K_h,
-    'menu':         pygame.K_ESCAPE,
+    'menu':         pygame.K_m,
     'entity_editor':pygame.K_e,
     'sub_place':    pygame.K_1,
     'sub_delete':   pygame.K_2,
