@@ -88,6 +88,9 @@ class Game:
         self._npc_apply_btn = None
         self._npc_edit_script_btn = None
 
+        # FIX: store expansion popup so its events are handled
+        self._expansion_popup: Optional[Popup] = None
+
         self.api = ScriptingAPI(self)
         self.sandbox = ScriptSandbox(self.api)
         self.validator = ScriptValidator()
@@ -251,6 +254,13 @@ class Game:
 
             if event.type == pygame.VIDEORESIZE:
                 continue
+
+            # FIX: handle expansion popup before anything else
+            if self._expansion_popup is not None:
+                if self._expansion_popup.handle_event(event):
+                    if not self._expansion_popup.active:
+                        self._expansion_popup = None
+                    continue
 
             # Priority overlays
             for system in [
@@ -493,6 +503,10 @@ class Game:
         if not self.current_world:
             return
 
+        # FIX: don't open a second popup if one is already active
+        if self._expansion_popup is not None and self._expansion_popup.active:
+            return
+
         def confirm_expand():
             tm = self.current_world.tile_map
             ok = tm.expand(direction, amount=10)
@@ -510,12 +524,18 @@ class Game:
                 )
             else:
                 self.console.log("Expansion failed.", "#FF0000")
+            self._expansion_popup = None
 
-        Popup(
+        def cancel_expand():
+            self._expansion_popup = None
+
+        # FIX: store popup reference so handle_event is called on it
+        self._expansion_popup = Popup(
             self.ui_manager,
             "Expand World?",
             f"Expand world {direction} by 10 tiles?",
             on_confirm=confirm_expand,
+            on_cancel=cancel_expand,
             confirm_text="Expand"
         )
 
