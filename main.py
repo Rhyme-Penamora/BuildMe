@@ -82,7 +82,10 @@ def main() -> int:
     """
     try:
         pygame.init()
-        screen = pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+        screen = pygame.display.set_mode(
+            (settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT),
+            pygame.RESIZABLE
+        )
         pygame.display.set_caption(settings.GAME_TITLE)
 
         world_name = run_main_menu(screen)
