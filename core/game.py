@@ -159,10 +159,12 @@ class Game:
                                 self.file_editor.toggle,
                                 lambda: self.file_editor.active),
 
-            'inventory':       (lambda: self.inventory_editor.toggle(
-                                    self.player.inventory if self.player else None),
-                                self.inventory_editor.hide,
-                                lambda: self.inventory_editor.active),
+            # in _get_overlay_map(), replace the 'inventory' entry:
+
+            'inventory': (lambda: self.inventory_editor.open(self.player.inventory)
+                          if self.player else None,
+                          self.inventory_editor.close,          # was .hide  ← the crash
+                          lambda: self.inventory_editor.active,),
 
             'player_customize': (lambda: self.player_customize.show(self.player)
                                  if self.player else None,
