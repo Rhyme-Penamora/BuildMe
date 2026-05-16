@@ -501,58 +501,58 @@ class Game:
         self.input_handler.update(events)
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
-        """Route keyboard shortcuts."""
-        if self.game_menu.active or self.console.active or self.code_editor.active:
+    """Route keyboard shortcuts."""
+    if self.game_menu.active or self.console.active or self.code_editor.active:
+        return
+
+    kb = settings.KEYBINDINGS
+
+    if event.key == kb.get('menu', pygame.K_ESCAPE):
+        # Pressing Escape closes any open overlay first; if none, toggles menu.
+        if self._active_overlay and self._active_overlay != 'game_menu':
+            self._close_active_overlay()
+        else:
+            self._open_exclusive_overlay('game_menu')
+        return
+
+    if event.key == kb.get('inventory', pygame.K_TAB):
+        if self.player and settings.GAME_RULES.get('inventory_system', True):
+            self._open_exclusive_overlay('inventory')  # fixed: was toggle() directly
+        return
+
+    if event.key == kb.get('help', pygame.K_h):
+        self._open_exclusive_overlay('help')
+        return
+
+    if event.key == kb.get('build_mode', pygame.K_b):
+        if settings.GAME_RULES.get('build_mode', True):
+            self._toggle_build_mode()
+        return
+
+    if event.key == kb.get('interact', pygame.K_f):
+        self._interact_with_nearby_entity()
+        return
+
+    if event.key == kb.get('entity_editor', pygame.K_e):
+        if (self.game_mode == "build" and
+                settings.GAME_RULES.get('entity_spawning', True)):
+            self._toggle_entity_editor()
+        return
+
+    # Sub-mode keys — active in build mode regardless of entity editor
+    if self.game_mode == "build":
+        sub_map = {
+            kb.get('sub_place',   pygame.K_1): "Place",
+            kb.get('sub_delete',  pygame.K_2): "Delete",
+            kb.get('sub_inspect', pygame.K_3): "Inspect",
+            kb.get('sub_select',  pygame.K_4): "Select",
+        }
+        new_mode = sub_map.get(event.key)
+        if new_mode is not None:
+            self.tile_editor.set_sub_mode(new_mode)
+            self.entity_editor.deactivate()
+            self.tile_editor.activate()
             return
-
-        kb = settings.KEYBINDINGS
-
-        if event.key == kb.get('menu', pygame.K_ESCAPE):
-            # Pressing Escape closes any open overlay first; if none, toggles menu.
-            if self._active_overlay and self._active_overlay != 'game_menu':
-                self._close_active_overlay()
-            else:
-                self._open_exclusive_overlay('game_menu')
-            return
-
-        if event.key == kb.get('inventory', pygame.K_TAB):
-            if self.player and settings.GAME_RULES.get('inventory_system', True):
-                self._open_exclusive_overlay('inventory')
-            return
-
-        if event.key == kb.get('help', pygame.K_h):
-            self._open_exclusive_overlay('help')
-            return
-
-        if event.key == kb.get('build_mode', pygame.K_b):
-            if settings.GAME_RULES.get('build_mode', True):
-                self._toggle_build_mode()
-            return
-
-        if event.key == kb.get('interact', pygame.K_f):
-            self._interact_with_nearby_entity()
-            return
-
-        if event.key == kb.get('entity_editor', pygame.K_e):
-            if (self.game_mode == "build" and
-                    settings.GAME_RULES.get('entity_spawning', True)):
-                self._toggle_entity_editor()
-            return
-
-        # Sub-mode keys — active in build mode regardless of entity editor
-        if self.game_mode == "build":
-            sub_map = {
-                kb.get('sub_place',   pygame.K_1): "Place",
-                kb.get('sub_delete',  pygame.K_2): "Delete",
-                kb.get('sub_inspect', pygame.K_3): "Inspect",
-                kb.get('sub_select',  pygame.K_4): "Select",
-            }
-            new_mode = sub_map.get(event.key)
-            if new_mode is not None:
-                self.tile_editor.set_sub_mode(new_mode)
-                self.entity_editor.deactivate()
-                self.tile_editor.activate()
-                return
 
     # ------------------------------------------------------------------
     # NPC right-click panel
