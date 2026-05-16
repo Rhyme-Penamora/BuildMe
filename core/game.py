@@ -139,62 +139,71 @@ class Game:
     # Overlay / panel exclusivity
     # ------------------------------------------------------------------
 
-    # Map of overlay name → (show callable, hide callable, active property getter)
-    # We build this lazily in _get_overlay_map so all objects are initialised first.
     def _get_overlay_map(self) -> dict:
         """
-        Return a mapping of overlay_name → (show_fn, hide_fn, is_active_fn).
+        Return a mapping of overlay_name -> (show_fn, hide_fn, is_active_fn).
         Used by _open_exclusive_overlay to enforce single-panel-at-a-time behaviour.
         """
         return {
-            'settings':        (self.settings_menu.show,
-                                self.settings_menu.hide,
-                                lambda: self.settings_menu.active),
-
-            'help':            (self.help_panel.toggle,
-                                self.help_panel.toggle,
-                                lambda: self.help_panel.active),
-
-            'file_editor':     (self.file_editor.toggle,
-                                self.file_editor.toggle,
-                                lambda: self.file_editor.active),
-
-            # in _get_overlay_map(), replace the 'inventory' entry:
-
-            'inventory': (lambda: self.inventory_editor.open(self.player.inventory)
-                          if self.player else None,
-                          self.inventory_editor.close,          # was .hide  ← the crash
-                          lambda: self.inventory_editor.active,),
-
-            'player_customize': (lambda: self.player_customize.show(self.player)
-                                 if self.player else None,
-                                 self.player_customize.hide,
-                                 lambda: self.player_customize.active),
-
-            'tile_type_manager': (self.tile_type_manager.show,
-                                  self.tile_type_manager.hide,
-                                  lambda: self.tile_type_manager.active),
-
-            'item_type_manager': (self.item_type_manager.show,
-                                  self.item_type_manager.hide,
-                                  lambda: self.item_type_manager.active),
-
-            'sprite_editor':   (lambda: self.sprite_editor.show(
-                                    target=self.player, category='sprites'),
-                                self.sprite_editor.hide,
-                                lambda: self.sprite_editor.active),
-
-            'code_editor':     (None,          # opened with specific args
-                                self.code_editor.close,
-                                lambda: self.code_editor.active),
-
-            'tutorial':        (lambda: self._start_tutorial(),
-                                lambda: None,
-                                lambda: self.tutorial.active),
-
-            'game_menu':       (self.game_menu.toggle,
-                                self.game_menu.toggle,
-                                lambda: self.game_menu.active),
+            'settings': (
+                self.settings_menu.show,
+                self.settings_menu.hide,
+                lambda: self.settings_menu.active,
+            ),
+            'help': (
+                self.help_panel.toggle,
+                self.help_panel.toggle,
+                lambda: self.help_panel.active,
+            ),
+            'file_editor': (
+                self.file_editor.toggle,
+                self.file_editor.toggle,
+                lambda: self.file_editor.active,
+            ),
+            'inventory': (
+                lambda: self.inventory_editor.open(self.player.inventory)
+                        if self.player else None,
+                self.inventory_editor.close,
+                lambda: self.inventory_editor.active,
+            ),
+            'player_customize': (
+                lambda: self.player_customize.show(self.player)
+                        if self.player else None,
+                self.player_customize.hide,
+                lambda: self.player_customize.active,
+            ),
+            'tile_type_manager': (
+                self.tile_type_manager.show,
+                self.tile_type_manager.hide,
+                lambda: self.tile_type_manager.active,
+            ),
+            'item_type_manager': (
+                self.item_type_manager.show,
+                self.item_type_manager.hide,
+                lambda: self.item_type_manager.active,
+            ),
+            'sprite_editor': (
+                lambda: self.sprite_editor.show(
+                    target=self.player, category='sprites'
+                ),
+                self.sprite_editor.hide,
+                lambda: self.sprite_editor.active,
+            ),
+            'code_editor': (
+                None,
+                self.code_editor.close,
+                lambda: self.code_editor.active,
+            ),
+            'tutorial': (
+                lambda: self._start_tutorial(),
+                lambda: None,
+                lambda: self.tutorial.active,
+            ),
+            'game_menu': (
+                self.game_menu.toggle,
+                self.game_menu.toggle,
+                lambda: self.game_menu.active,
+            ),
         }
 
     def _close_active_overlay(self) -> None:
@@ -213,7 +222,6 @@ class Game:
 
         _show_fn, hide_fn, is_active_fn = entry
 
-        # Only call hide if the panel reports itself as active.
         try:
             if is_active_fn():
                 hide_fn()
@@ -245,7 +253,7 @@ class Game:
 
         opener = show_fn
         if opener is None and entry is not None:
-            opener = entry[0]   # registered show callable
+            opener = entry[0]
 
         if opener is not None:
             try:
@@ -282,7 +290,6 @@ class Game:
 
         def _open():
             self.sprite_editor.show(target=target, category=category)
-            # Store world name so handle_event passes it automatically.
             self.sprite_editor._current_world_name = resolved_world
 
         self._open_exclusive_overlay('sprite_editor', show_fn=_open)
@@ -296,12 +303,21 @@ class Game:
         self.game_menu.on_save = self._save_world
         self.game_menu.on_exit_to_menu = self._exit_to_main_menu
 
-        # Route every game-menu action through the exclusive-overlay system.
-        self.game_menu.on_settings       = lambda: self._open_exclusive_overlay('settings')
-        self.game_menu.on_help           = lambda: self._open_exclusive_overlay('help')
-        self.game_menu.on_file_editor    = lambda: self._open_exclusive_overlay('file_editor')
-        self.game_menu.on_tutorial       = lambda: self._open_exclusive_overlay('tutorial')
-        self.game_menu.on_customize_player = lambda: self._open_exclusive_overlay('player_customize')
+        self.game_menu.on_settings = (
+            lambda: self._open_exclusive_overlay('settings')
+        )
+        self.game_menu.on_help = (
+            lambda: self._open_exclusive_overlay('help')
+        )
+        self.game_menu.on_file_editor = (
+            lambda: self._open_exclusive_overlay('file_editor')
+        )
+        self.game_menu.on_tutorial = (
+            lambda: self._open_exclusive_overlay('tutorial')
+        )
+        self.game_menu.on_customize_player = (
+            lambda: self._open_exclusive_overlay('player_customize')
+        )
 
         self.settings_menu.on_apply = self._on_settings_applied
         self.tutorial.on_exit = lambda: None
@@ -349,8 +365,10 @@ class Game:
         if bg and os.path.exists(bg):
             self._load_background(bg)
 
-        cx = world.tile_map.width  * world.tile_map.tile_size / 2 - settings.PLAYER_SIZE / 2
-        cy = world.tile_map.height * world.tile_map.tile_size / 2 - settings.PLAYER_SIZE / 2
+        cx = (world.tile_map.width * world.tile_map.tile_size / 2
+              - settings.PLAYER_SIZE / 2)
+        cy = (world.tile_map.height * world.tile_map.tile_size / 2
+              - settings.PLAYER_SIZE / 2)
         self.player = Player(position=(cx, cy))
         self._update_camera_immediate()
         self._update_hud()
@@ -423,7 +441,8 @@ class Game:
             # Expansion popup — highest priority after quit/resize.
             if self._expansion_popup is not None:
                 consumed = self._expansion_popup.handle_event(event)
-                if self._expansion_popup is not None and not self._expansion_popup.active:
+                if (self._expansion_popup is not None
+                        and not self._expansion_popup.active):
                     self._expansion_popup = None
                 if consumed:
                     continue
@@ -447,7 +466,6 @@ class Game:
                 continue
 
             if self.sprite_editor.active:
-                # Pass stored world name so SpriteEditor can save assets correctly.
                 wn = getattr(self.sprite_editor, '_current_world_name', None)
                 if wn is None:
                     wn = self.current_world.name if self.current_world else ""
@@ -501,58 +519,58 @@ class Game:
         self.input_handler.update(events)
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
-    """Route keyboard shortcuts."""
-    if self.game_menu.active or self.console.active or self.code_editor.active:
-        return
-
-    kb = settings.KEYBINDINGS
-
-    if event.key == kb.get('menu', pygame.K_ESCAPE):
-        # Pressing Escape closes any open overlay first; if none, toggles menu.
-        if self._active_overlay and self._active_overlay != 'game_menu':
-            self._close_active_overlay()
-        else:
-            self._open_exclusive_overlay('game_menu')
-        return
-
-    if event.key == kb.get('inventory', pygame.K_TAB):
-        if self.player and settings.GAME_RULES.get('inventory_system', True):
-            self._open_exclusive_overlay('inventory')  # fixed: was toggle() directly
-        return
-
-    if event.key == kb.get('help', pygame.K_h):
-        self._open_exclusive_overlay('help')
-        return
-
-    if event.key == kb.get('build_mode', pygame.K_b):
-        if settings.GAME_RULES.get('build_mode', True):
-            self._toggle_build_mode()
-        return
-
-    if event.key == kb.get('interact', pygame.K_f):
-        self._interact_with_nearby_entity()
-        return
-
-    if event.key == kb.get('entity_editor', pygame.K_e):
-        if (self.game_mode == "build" and
-                settings.GAME_RULES.get('entity_spawning', True)):
-            self._toggle_entity_editor()
-        return
-
-    # Sub-mode keys — active in build mode regardless of entity editor
-    if self.game_mode == "build":
-        sub_map = {
-            kb.get('sub_place',   pygame.K_1): "Place",
-            kb.get('sub_delete',  pygame.K_2): "Delete",
-            kb.get('sub_inspect', pygame.K_3): "Inspect",
-            kb.get('sub_select',  pygame.K_4): "Select",
-        }
-        new_mode = sub_map.get(event.key)
-        if new_mode is not None:
-            self.tile_editor.set_sub_mode(new_mode)
-            self.entity_editor.deactivate()
-            self.tile_editor.activate()
+        """Route keyboard shortcuts."""
+        if self.game_menu.active or self.console.active or self.code_editor.active:
             return
+
+        kb = settings.KEYBINDINGS
+
+        if event.key == kb.get('menu', pygame.K_ESCAPE):
+            # Pressing Escape closes any open overlay first; if none, toggles menu.
+            if self._active_overlay and self._active_overlay != 'game_menu':
+                self._close_active_overlay()
+            else:
+                self._open_exclusive_overlay('game_menu')
+            return
+
+        if event.key == kb.get('inventory', pygame.K_TAB):
+            if self.player and settings.GAME_RULES.get('inventory_system', True):
+                self._open_exclusive_overlay('inventory')
+            return
+
+        if event.key == kb.get('help', pygame.K_h):
+            self._open_exclusive_overlay('help')
+            return
+
+        if event.key == kb.get('build_mode', pygame.K_b):
+            if settings.GAME_RULES.get('build_mode', True):
+                self._toggle_build_mode()
+            return
+
+        if event.key == kb.get('interact', pygame.K_f):
+            self._interact_with_nearby_entity()
+            return
+
+        if event.key == kb.get('entity_editor', pygame.K_e):
+            if (self.game_mode == "build" and
+                    settings.GAME_RULES.get('entity_spawning', True)):
+                self._toggle_entity_editor()
+            return
+
+        # Sub-mode keys — active in build mode regardless of entity editor
+        if self.game_mode == "build":
+            sub_map = {
+                kb.get('sub_place',   pygame.K_1): "Place",
+                kb.get('sub_delete',  pygame.K_2): "Delete",
+                kb.get('sub_inspect', pygame.K_3): "Inspect",
+                kb.get('sub_select',  pygame.K_4): "Select",
+            }
+            new_mode = sub_map.get(event.key)
+            if new_mode is not None:
+                self.tile_editor.set_sub_mode(new_mode)
+                self.entity_editor.deactivate()
+                self.tile_editor.activate()
+                return
 
     # ------------------------------------------------------------------
     # NPC right-click panel
@@ -666,7 +684,6 @@ class Game:
                     script_path = os.path.join(
                         world_dir, "behaviors", "entities", f"{npc.id[:8]}.py"
                     )
-                    # Opening code editor closes any other overlay first.
                     self._close_active_overlay()
                     self.code_editor.open(
                         script_path,
@@ -742,7 +759,9 @@ class Game:
             return
 
         if not self.console.active:
-            self.player.update(dt, self.input_handler, self.current_world.tile_map)
+            self.player.update(
+                dt, self.input_handler, self.current_world.tile_map
+            )
 
         for entity in list(self.current_world.entities):
             entity.update(dt)
@@ -783,8 +802,10 @@ class Game:
     def _update_camera(self, dt: float) -> None:
         if not self.player:
             return
-        tx = self.player.position[0] + self.player.size[0]/2 - settings.SCREEN_WIDTH/2
-        ty = self.player.position[1] + self.player.size[1]/2 - settings.SCREEN_HEIGHT/2
+        tx = (self.player.position[0] + self.player.size[0] / 2
+              - settings.SCREEN_WIDTH / 2)
+        ty = (self.player.position[1] + self.player.size[1] / 2
+              - settings.SCREEN_HEIGHT / 2)
         t = min(1.0, settings.CAMERA_LERP_SPEED * dt)
         self.camera_offset[0] += (tx - self.camera_offset[0]) * t
         self.camera_offset[1] += (ty - self.camera_offset[1]) * t
@@ -793,10 +814,12 @@ class Game:
         if not self.player:
             return
         self.camera_offset[0] = (
-            self.player.position[0] + self.player.size[0]/2 - settings.SCREEN_WIDTH/2
+            self.player.position[0] + self.player.size[0] / 2
+            - settings.SCREEN_WIDTH / 2
         )
         self.camera_offset[1] = (
-            self.player.position[1] + self.player.size[1]/2 - settings.SCREEN_HEIGHT/2
+            self.player.position[1] + self.player.size[1] / 2
+            - settings.SCREEN_HEIGHT / 2
         )
 
     # ------------------------------------------------------------------
@@ -826,7 +849,9 @@ class Game:
                 self.current_world.tile_map,
                 tuple(self.camera_offset),
                 selected_tile_type=self.tile_editor.selected_tile_type,
-                sub_mode=self.tile_editor.sub_mode if self.tile_editor.active else "",
+                sub_mode=(
+                    self.tile_editor.sub_mode if self.tile_editor.active else ""
+                ),
                 mouse_grid=mouse_grid,
             )
             self.renderer.render_entities(
@@ -861,7 +886,9 @@ class Game:
             sy = entity.position[1] - self.camera_offset[1] - 18
             if (-60 <= sx <= settings.SCREEN_WIDTH + 60 and
                     -60 <= sy <= settings.SCREEN_HEIGHT + 60):
-                lbl = font.render(entity.name, True, settings.COLORS['white'])
+                lbl = font.render(
+                    entity.name, True, settings.COLORS['white']
+                )
                 self.screen.blit(lbl, (int(sx), int(sy)))
 
     def _render_dialogue(self, text: str) -> None:
@@ -875,8 +902,10 @@ class Game:
         s.set_alpha(220)
         s.fill((20, 20, 40))
         self.screen.blit(s, (bx, by))
-        pygame.draw.rect(self.screen, settings.COLORS['white'],
-                         pygame.Rect(bx, by, bw, bh), 2)
+        pygame.draw.rect(
+            self.screen, settings.COLORS['white'],
+            pygame.Rect(bx, by, bw, bh), 2
+        )
         t = self.dialogue_font.render(text, True, settings.COLORS['white'])
         self.screen.blit(t, (bx + 15, by + (bh - t.get_height()) // 2))
 
@@ -893,9 +922,11 @@ class Game:
         )
         sub = ""
         if self.game_mode == "build":
-            sub = (f"Entity({self.entity_editor.selected_entity_type})"
-                   if self.entity_editor.active
-                   else self.tile_editor.sub_mode)
+            sub = (
+                f"Entity({self.entity_editor.selected_entity_type})"
+                if self.entity_editor.active
+                else self.tile_editor.sub_mode
+            )
 
         self.hud.update(
             mode="Build" if self.game_mode == "build" else "Play",
@@ -916,7 +947,8 @@ class Game:
             self.game_mode = "build"
             self.tile_editor.activate()
             self.console.log(
-                "Build mode ON  —  1:Place  2:Delete  3:Inspect  4:Select  E:Entities",
+                "Build mode ON  —  "
+                "1:Place  2:Delete  3:Inspect  4:Select  E:Entities",
                 "#FFFF00"
             )
         else:
@@ -947,7 +979,7 @@ class Game:
             if isinstance(entity, NPC):
                 dx = entity.position[0] - self.player.position[0]
                 dy = entity.position[1] - self.player.position[1]
-                dist = (dx*dx + dy*dy)**0.5
+                dist = (dx * dx + dy * dy) ** 0.5
                 if dist < interact_range and dist < closest_dist:
                     closest_dist = dist
                     closest = entity
@@ -980,7 +1012,9 @@ class Game:
         if glb.get('mobile_controls'):
             self.mobile_controls.keybindings = kb
             self.mobile_controls.set_dpad_size(glb.get('dpad_size', 80))
-            self.mobile_controls.set_action_btn_size(glb.get('action_btn_size', 64))
+            self.mobile_controls.set_action_btn_size(
+                glb.get('action_btn_size', 64)
+            )
             self.mobile_controls.enable()
         else:
             self.mobile_controls.disable()
@@ -1008,7 +1042,9 @@ class Game:
                 if (os.path.normpath(entity.behavior_script) ==
                         os.path.normpath(filepath)):
                     self._reload_entity_script(entity)
-                    self.console.log(f"Hot reloaded: {entity.name}", "#00FFFF")
+                    self.console.log(
+                        f"Hot reloaded: {entity.name}", "#00FFFF"
+                    )
 
     def _reload_entity_script(self, entity) -> None:
         if not entity.behavior_script:
@@ -1096,7 +1132,9 @@ class Game:
                 return
             entity = self.api.spawn_entity(etype, x, y)
             if entity:
-                self.console.log(f"Spawned {etype} id={entity.id[:8]}", "#00FF00")
+                self.console.log(
+                    f"Spawned {etype} id={entity.id[:8]}", "#00FF00"
+                )
             else:
                 self.console.log("Spawn failed.", "#FF0000")
 
@@ -1124,10 +1162,13 @@ class Game:
             if not tm.is_in_bounds(x, y):
                 direction = tm.get_expansion_direction(x, y)
                 if direction:
-                    needed = max(10, abs(x) if direction in ('west',) else
-                                 abs(y) if direction in ('north',) else
-                                 x - tm.width + 1 if direction == 'east' else
-                                 y - tm.height + 1)
+                    needed = max(
+                        10,
+                        abs(x) if direction in ('west',) else
+                        abs(y) if direction in ('north',) else
+                        x - tm.width + 1 if direction == 'east' else
+                        y - tm.height + 1
+                    )
                     tm.expand(direction, needed)
                     if direction == 'north':
                         self.player.position[1] += needed * settings.TILE_SIZE
@@ -1135,14 +1176,18 @@ class Game:
                     elif direction == 'west':
                         self.player.position[0] += needed * settings.TILE_SIZE
                         self.camera_offset[0]   += needed * settings.TILE_SIZE
-                    self.console.log(f"Auto-expanded {direction}.", "#FFFF00")
+                    self.console.log(
+                        f"Auto-expanded {direction}.", "#FFFF00"
+                    )
 
             td = settings.DEFAULT_TILE_TYPES[ttype]
             ok = tm.set_tile(x, y, Tile(
-                ttype, td['is_solid'], td['movement_modifier'], td['color']
+                ttype, td['is_solid'],
+                td['movement_modifier'], td['color']
             ))
             self.console.log(
-                f"Set ({x},{y}) → {ttype}." if ok else "Still out of bounds.",
+                f"Set ({x},{y}) → {ttype}." if ok
+                else "Still out of bounds.",
                 "#00FF00" if ok else "#FF0000"
             )
 
@@ -1213,7 +1258,9 @@ class Game:
                 return
             for w in worlds:
                 import time as _t
-                lp = _t.strftime("%Y-%m-%d", _t.localtime(w.get('last_played', 0)))
+                lp = _t.strftime(
+                    "%Y-%m-%d", _t.localtime(w.get('last_played', 0))
+                )
                 self.console.log(f"  {w['name']}  last:{lp}", "#FFFFFF")
 
         def cmd_listcmds(args):
@@ -1252,7 +1299,8 @@ class Game:
                 if item:
                     has = True
                     self.console.log(
-                        f"  [{i}] {item.name} x{item.quantity} ({item.item_id})",
+                        f"  [{i}] {item.name} x{item.quantity} "
+                        f"({item.item_id})",
                         "#FFFFFF"
                     )
             if not has:
@@ -1326,7 +1374,9 @@ class Game:
 
         def cmd_setplayersprite(args):
             if not args:
-                self.console.log("Usage: setplayersprite [path]", "#FFFF00")
+                self.console.log(
+                    "Usage: setplayersprite [path]", "#FFFF00"
+                )
                 return
             path = " ".join(args)
             if not os.path.exists(path):
@@ -1359,11 +1409,7 @@ class Game:
             self.console.log("Settings opened.", "#00FF00")
 
         def cmd_openspriteeditor(args):
-            """Open the sprite editor for the player from the console."""
-            self.open_sprite_editor(
-                target=self.player,
-                category='sprites'
-            )
+            self.open_sprite_editor(target=self.player, category='sprites')
             self.console.log("Sprite editor opened.", "#00FF00")
 
         def cmd_help(args):
@@ -1371,14 +1417,22 @@ class Game:
                 cmd_listcmds([])
                 return
             help_map = {
-                'spawn':            "spawn [type] [x] [y]  Types: npc, enemy",
-                'settile':          (
+                'spawn': (
+                    "spawn [type] [x] [y]  Types: npc, enemy"
+                ),
+                'settile': (
                     f"settile [x] [y] [type]  Auto-expands world. "
                     f"Types: {', '.join(settings.DEFAULT_TILE_TYPES)}"
                 ),
-                'tp':               "tp [x] [y]  Teleport player to tile coords",
-                'listentities':     "List all entities with id and position",
-                'reload':           "reload [id]  Force reload behavior script",
+                'tp': (
+                    "tp [x] [y]  Teleport player to tile coords"
+                ),
+                'listentities': (
+                    "List all entities with id and position"
+                ),
+                'reload': (
+                    "reload [id]  Force reload behavior script"
+                ),
                 'save':             "Force save world to disk",
                 'clear':            "Clear console log",
                 'listworlds':       "List all saved worlds",
