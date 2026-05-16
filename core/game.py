@@ -2,7 +2,7 @@
 # File: sandbox_game/core/game.py
 # =============================================================================
 """
-Main game loop — all systems wired, all 7 issues fixed.
+Main game loop — all systems wired, all issues fixed.
 """
 
 import pygame
@@ -88,7 +88,7 @@ class Game:
         self._npc_apply_btn = None
         self._npc_edit_script_btn = None
 
-        # FIX: store expansion popup so its events are handled
+        # Expansion popup reference
         self._expansion_popup: Optional[Popup] = None
 
         self.api = ScriptingAPI(self)
@@ -122,6 +122,10 @@ class Game:
 
         self.tile_editor.on_expansion_needed = self._handle_world_expansion
 
+        # Track which overlay panel is currently open so we can
+        # close it automatically when another one is opened.
+        self._active_overlay: Optional[str] = None
+
         self._wire_callbacks()
         self._register_console_commands()
         self._subscribe_fab_events()
@@ -132,6 +136,156 @@ class Game:
             self.dialogue_font = None
 
     # ------------------------------------------------------------------
+    # Overlay / panel exclusivity
+    # ------------------------------------------------------------------
+
+    # Map of overlay name → (show callable, hide callable, active property getter)
+    # We build this lazily in _get_overlay_map so all objects are initialised first.
+    def _get_overlay_map(self) -> dict:
+        """
+        Return a mapping of overlay_name → (show_fn, hide_fn, is_active_fn).
+        Used by _open_exclusive_overlay to enforce single-panel-at-a-time behaviour.
+        """
+        return {
+            'settings':        (self.settings_menu.show,
+                                self.settings_menu.hide,
+                                lambda: self.settings_menu.active),
+
+            'help':            (self.help_panel.toggle,
+                                self.help_panel.toggle,
+                                lambda: self.help_panel.active),
+
+            'file_editor':     (self.file_editor.toggle,
+                                self.file_editor.toggle,
+                                lambda: self.file_editor.active),
+
+            'inventory':       (lambda: self.inventory_editor.toggle(
+                                    self.player.inventory if self.player else None),
+                                self.inventory_editor.hide,
+                                lambda: self.inventory_editor.active),
+
+            'player_customize': (lambda: self.player_customize.show(self.player)
+                                 if self.player else None,
+                                 self.player_customize.hide,
+                                 lambda: self.player_customize.active),
+
+            'tile_type_manager': (self.tile_type_manager.show,
+                                  self.tile_type_manager.hide,
+                                  lambda: self.tile_type_manager.active),
+
+            'item_type_manager': (self.item_type_manager.show,
+                                  self.item_type_manager.hide,
+                                  lambda: self.item_type_manager.active),
+
+            'sprite_editor':   (lambda: self.sprite_editor.show(
+                                    target=self.player, category='sprites'),
+                                self.sprite_editor.hide,
+                                lambda: self.sprite_editor.active),
+
+            'code_editor':     (None,          # opened with specific args
+                                self.code_editor.close,
+                                lambda: self.code_editor.active),
+
+            'tutorial':        (lambda: self._start_tutorial(),
+                                lambda: None,
+                                lambda: self.tutorial.active),
+
+            'game_menu':       (self.game_menu.toggle,
+                                self.game_menu.toggle,
+                                lambda: self.game_menu.active),
+        }
+
+    def _close_active_overlay(self) -> None:
+        """
+        Close whatever overlay is currently open.
+        Calls the registered hide callable for self._active_overlay.
+        """
+        if self._active_overlay is None:
+            return
+
+        overlay_map = self._get_overlay_map()
+        entry = overlay_map.get(self._active_overlay)
+        if entry is None:
+            self._active_overlay = None
+            return
+
+        _show_fn, hide_fn, is_active_fn = entry
+
+        # Only call hide if the panel reports itself as active.
+        try:
+            if is_active_fn():
+                hide_fn()
+        except Exception as e:
+            print(f"[overlay] Could not close '{self._active_overlay}': {e}")
+
+        self._active_overlay = None
+
+    def _open_exclusive_overlay(self, name: str, show_fn=None) -> None:
+        """
+        Close any currently open overlay then open the requested one.
+
+        Args:
+            name:    Key in the overlay map (e.g. 'settings', 'help').
+            show_fn: Optional override callable to open the panel.
+                     If None the registered show callable is used.
+        """
+        # If the same overlay is already open, just close it (toggle behaviour).
+        if self._active_overlay == name:
+            self._close_active_overlay()
+            return
+
+        # Close whatever was open before.
+        self._close_active_overlay()
+
+        # Open the new overlay.
+        overlay_map = self._get_overlay_map()
+        entry = overlay_map.get(name)
+
+        opener = show_fn
+        if opener is None and entry is not None:
+            opener = entry[0]   # registered show callable
+
+        if opener is not None:
+            try:
+                opener()
+            except Exception as e:
+                print(f"[overlay] Could not open '{name}': {e}")
+
+        self._active_overlay = name
+
+    # ------------------------------------------------------------------
+    # Sprite editor helpers (public API for external callers)
+    # ------------------------------------------------------------------
+
+    def open_sprite_editor(
+        self,
+        target=None,
+        category: str = 'sprites',
+        world_name: str = ""
+    ) -> None:
+        """
+        Open the sprite editor for *target* exclusively
+        (closes any other open overlay first).
+
+        Args:
+            target:     Object that will receive the assigned sprite
+                        (e.g. player, an entity, or None).
+            category:   Asset sub-folder category ('sprites', 'tiles', etc.).
+            world_name: Optional world name used when saving assets.
+                        Defaults to the current world name when omitted.
+        """
+        resolved_world = world_name or (
+            self.current_world.name if self.current_world else ""
+        )
+
+        def _open():
+            self.sprite_editor.show(target=target, category=category)
+            # Store world name so handle_event passes it automatically.
+            self.sprite_editor._current_world_name = resolved_world
+
+        self._open_exclusive_overlay('sprite_editor', show_fn=_open)
+
+    # ------------------------------------------------------------------
     # Wiring
     # ------------------------------------------------------------------
 
@@ -139,23 +293,32 @@ class Game:
         self.code_editor.on_save = self._on_script_saved
         self.game_menu.on_save = self._save_world
         self.game_menu.on_exit_to_menu = self._exit_to_main_menu
-        self.game_menu.on_settings = self._open_settings
-        self.game_menu.on_help = lambda: self.help_panel.toggle()
-        self.game_menu.on_file_editor = lambda: self.file_editor.toggle()
-        self.game_menu.on_tutorial = self._start_tutorial
-        self.game_menu.on_customize_player = self._open_player_customize
+
+        # Route every game-menu action through the exclusive-overlay system.
+        self.game_menu.on_settings       = lambda: self._open_exclusive_overlay('settings')
+        self.game_menu.on_help           = lambda: self._open_exclusive_overlay('help')
+        self.game_menu.on_file_editor    = lambda: self._open_exclusive_overlay('file_editor')
+        self.game_menu.on_tutorial       = lambda: self._open_exclusive_overlay('tutorial')
+        self.game_menu.on_customize_player = lambda: self._open_exclusive_overlay('player_customize')
+
         self.settings_menu.on_apply = self._on_settings_applied
         self.tutorial.on_exit = lambda: None
+
         self.player_customize.on_open_sprite_editor = (
-            lambda p: self.sprite_editor.show(target=p, category='sprites')
+            lambda p: self.open_sprite_editor(target=p, category='sprites')
         )
 
     def _subscribe_fab_events(self) -> None:
-        event_bus.subscribe('fab_save',        lambda _: self._save_world())
-        event_bus.subscribe('fab_help',        lambda _: self.help_panel.toggle())
-        event_bus.subscribe('fab_settings',    lambda _: self._open_settings())
-        event_bus.subscribe('fab_file_editor', lambda _: self.file_editor.toggle())
-        event_bus.subscribe('fab_exit_menu',   lambda _: self._exit_to_main_menu())
+        event_bus.subscribe('fab_save',
+                            lambda _: self._save_world())
+        event_bus.subscribe('fab_help',
+                            lambda _: self._open_exclusive_overlay('help'))
+        event_bus.subscribe('fab_settings',
+                            lambda _: self._open_exclusive_overlay('settings'))
+        event_bus.subscribe('fab_file_editor',
+                            lambda _: self._open_exclusive_overlay('file_editor'))
+        event_bus.subscribe('fab_exit_menu',
+                            lambda _: self._exit_to_main_menu())
 
     # ------------------------------------------------------------------
     # World loading
@@ -255,98 +418,108 @@ class Game:
             if event.type == pygame.VIDEORESIZE:
                 continue
 
-            # FIX: handle expansion popup before anything else
+            # Expansion popup — highest priority after quit/resize.
             if self._expansion_popup is not None:
-                if self._expansion_popup.handle_event(event):
-                            
-                    if self._expansion_popup is not None:
-                                popup = self._expansion_popup
-                                
-                                if popup.handle_event(event):
-                                            if self._expansion_popup is not None and not popup.active:
-                                                        self._expansion_popup = None
-                                            continue
+                consumed = self._expansion_popup.handle_event(event)
+                if self._expansion_popup is not None and not self._expansion_popup.active:
+                    self._expansion_popup = None
+                if consumed:
+                    continue
 
-            # Priority overlays
-            for system in [
-                self.settings_menu, self.player_customize,
-                self.tile_type_manager, self.item_type_manager,
-                self.file_editor, self.code_editor,
-            ]:
+            # Priority overlays (only the first active one consumes the event)
+            priority_systems = [
+                self.settings_menu,
+                self.player_customize,
+                self.tile_type_manager,
+                self.item_type_manager,
+                self.file_editor,
+                self.code_editor,
+            ]
+            consumed_by_priority = False
+            for system in priority_systems:
                 if system.active:
                     if system.handle_event(event):
+                        consumed_by_priority = True
                         break
-            else:
-                if self.sprite_editor.active:
-                    wn = self.current_world.name if self.current_world else ""
-                    if self.sprite_editor.handle_event(event, wn):
-                        continue
-
-                if self.help_panel.active:
-                    if self.help_panel.handle_event(event):
-                        continue
-
-                if self.tutorial.active:
-                    if self.tutorial.handle_event(event):
-                        continue
-
-                if self.inventory_editor.active:
-                    if self.inventory_editor.handle_event(event):
-                        continue
-
-                if self.game_menu.active:
-                    if self.game_menu.handle_event(event):
-                        continue
-
-                if self._npc_panel is not None:
-                    if self._handle_npc_panel_event(event):
-                        continue
-
-                # Console toggle
-                if event.type == pygame.KEYDOWN:
-                    kb = settings.KEYBINDINGS
-                    if event.key == kb.get('console', pygame.K_BACKQUOTE):
-                        self.console.toggle()
-                        continue
-
-                if self.console.active:
-                    if self.console.handle_event(event):
-                        continue
-
-                if event.type == pygame.KEYDOWN:
-                    self._handle_keydown(event)
-
-                # Right-click NPC
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
-                    self._try_open_npc_panel(event.pos)
-
-                if self.tile_editor.active and not self.console.active:
-                    self.tile_editor.handle_event(event)
-
-                if self.entity_editor.active and not self.console.active:
-                    self.entity_editor.handle_event(event)
+            if consumed_by_priority:
                 continue
+
+            if self.sprite_editor.active:
+                # Pass stored world name so SpriteEditor can save assets correctly.
+                wn = getattr(self.sprite_editor, '_current_world_name', None)
+                if wn is None:
+                    wn = self.current_world.name if self.current_world else ""
+                if self.sprite_editor.handle_event(event, wn):
+                    continue
+
+            if self.help_panel.active:
+                if self.help_panel.handle_event(event):
+                    continue
+
+            if self.tutorial.active:
+                if self.tutorial.handle_event(event):
+                    continue
+
+            if self.inventory_editor.active:
+                if self.inventory_editor.handle_event(event):
+                    continue
+
+            if self.game_menu.active:
+                if self.game_menu.handle_event(event):
+                    continue
+
+            if self._npc_panel is not None:
+                if self._handle_npc_panel_event(event):
+                    continue
+
+            # Console toggle key
+            if event.type == pygame.KEYDOWN:
+                kb = settings.KEYBINDINGS
+                if event.key == kb.get('console', pygame.K_BACKQUOTE):
+                    self.console.toggle()
+                    continue
+
+            if self.console.active:
+                if self.console.handle_event(event):
+                    continue
+
+            if event.type == pygame.KEYDOWN:
+                self._handle_keydown(event)
+
+            # Right-click NPC
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+                self._try_open_npc_panel(event.pos)
+
+            if self.tile_editor.active and not self.console.active:
+                self.tile_editor.handle_event(event)
+
+            if self.entity_editor.active and not self.console.active:
+                self.entity_editor.handle_event(event)
 
         self.input_handler.update(events)
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
-        """Route keyboard shortcuts. Sub-mode keys handled here."""
+        """Route keyboard shortcuts."""
         if self.game_menu.active or self.console.active or self.code_editor.active:
             return
 
         kb = settings.KEYBINDINGS
 
         if event.key == kb.get('menu', pygame.K_ESCAPE):
-            self.game_menu.toggle()
+            # Pressing Escape closes any open overlay first; if none, toggles menu.
+            if self._active_overlay and self._active_overlay != 'game_menu':
+                self._close_active_overlay()
+            else:
+                self._open_exclusive_overlay('game_menu')
             return
 
         if event.key == kb.get('inventory', pygame.K_TAB):
             if self.player and settings.GAME_RULES.get('inventory_system', True):
-                self.inventory_editor.toggle(self.player.inventory)
+                self._open_exclusive_overlay('inventory')
             return
 
         if event.key == kb.get('help', pygame.K_h):
-            self.help_panel.toggle()
+            self._open_exclusive_overlay('help')
             return
 
         if event.key == kb.get('build_mode', pygame.K_b):
@@ -491,10 +664,13 @@ class Game:
                     script_path = os.path.join(
                         world_dir, "behaviors", "entities", f"{npc.id[:8]}.py"
                     )
+                    # Opening code editor closes any other overlay first.
+                    self._close_active_overlay()
                     self.code_editor.open(
                         script_path,
                         self.code_editor.get_template("entity", npc.name)
                     )
+                    self._active_overlay = 'code_editor'
                     npc.behavior_script = script_path
                 return True
 
@@ -508,7 +684,6 @@ class Game:
         if not self.current_world:
             return
 
-        # FIX: don't open a second popup if one is already active
         if self._expansion_popup is not None and self._expansion_popup.active:
             return
 
@@ -534,7 +709,6 @@ class Game:
         def cancel_expand():
             self._expansion_popup = None
 
-        # FIX: store popup reference so handle_event is called on it
         self._expansion_popup = Popup(
             self.ui_manager,
             "Expand World?",
@@ -642,7 +816,9 @@ class Game:
             self.renderer.clear()
 
         if self.current_world and self.player:
-            mouse_grid = self._get_mouse_grid() if self.tile_editor.active else None
+            mouse_grid = (
+                self._get_mouse_grid() if self.tile_editor.active else None
+            )
 
             self.renderer.render_tile_map(
                 self.current_world.tile_map,
@@ -796,7 +972,7 @@ class Game:
     # ------------------------------------------------------------------
 
     def _open_settings(self) -> None:
-        self.settings_menu.show()
+        self._open_exclusive_overlay('settings')
 
     def _on_settings_applied(self, kb, rules, glb) -> None:
         if glb.get('mobile_controls'):
@@ -810,11 +986,13 @@ class Game:
         flags = pygame.RESIZABLE
         if glb.get('fullscreen'):
             flags = pygame.FULLSCREEN
-        pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), flags)
+        pygame.display.set_mode(
+            (settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), flags
+        )
 
     def _open_player_customize(self) -> None:
         if self.player:
-            self.player_customize.show(self.player)
+            self._open_exclusive_overlay('player_customize')
 
     # ------------------------------------------------------------------
     # Hot reload
@@ -1020,8 +1198,11 @@ class Game:
             self._reload_entity_script(m)
             self.console.log(f"Reloaded '{m.name}'.", "#00FF00")
 
-        def cmd_save(args):   self._save_world()
-        def cmd_clear(args):  self.console.clear_log()
+        def cmd_save(args):
+            self._save_world()
+
+        def cmd_clear(args):
+            self.console.clear_log()
 
         def cmd_listworlds(args):
             worlds = self.world_manager.list_worlds()
@@ -1035,25 +1216,26 @@ class Game:
 
         def cmd_listcmds(args):
             rows = [
-                ("spawn [type] [x] [y]",     "Spawn entity"),
-                ("settile [x] [y] [type]",   "Set tile (auto-expands)"),
-                ("tp [x] [y]",               "Teleport player"),
-                ("listentities",             "List entities"),
-                ("reload [id]",              "Reload entity script"),
-                ("save",                     "Save world"),
-                ("clear",                    "Clear console"),
-                ("listworlds",               "List worlds"),
-                ("listcmds",                 "List commands"),
-                ("listitems",                "List inventory"),
-                ("giveitem [id] [qty]",      "Give item"),
-                ("settilecode [x] [y]",      "Edit tile script"),
-                ("setworldbg [path]",        "Set background"),
-                ("setplayersprite [path]",   "Set player sprite"),
-                ("opentilemanager",          "Tile type manager"),
-                ("openitemmanager",          "Item type manager"),
-                ("opencustomize",            "Player customize"),
-                ("opensettings",             "Settings menu"),
-                ("help [command]",           "Help for command"),
+                ("spawn [type] [x] [y]",      "Spawn entity"),
+                ("settile [x] [y] [type]",    "Set tile (auto-expands)"),
+                ("tp [x] [y]",                "Teleport player"),
+                ("listentities",              "List entities"),
+                ("reload [id]",               "Reload entity script"),
+                ("save",                      "Save world"),
+                ("clear",                     "Clear console"),
+                ("listworlds",                "List worlds"),
+                ("listcmds",                  "List commands"),
+                ("listitems",                 "List inventory"),
+                ("giveitem [id] [qty]",       "Give item"),
+                ("settilecode [x] [y]",       "Edit tile script"),
+                ("setworldbg [path]",         "Set background"),
+                ("setplayersprite [path]",    "Set player sprite"),
+                ("opentilemanager",           "Tile type manager"),
+                ("openitemmanager",           "Item type manager"),
+                ("opencustomize",             "Player customize"),
+                ("opensettings",              "Settings menu"),
+                ("openspriteeditor",          "Open sprite editor"),
+                ("help [command]",            "Help for command"),
             ]
             for name, desc in rows:
                 self.console.log(f"  {name:<34} {desc}", "#FFFFFF")
@@ -1113,10 +1295,16 @@ class Game:
                 "worlds",
                 self.world_manager._sanitize_filename(self.current_world.name)
             )
-            sp = os.path.join(world_dir, "behaviors", "tiles", f"tile_{x}_{y}.py")
-            self.code_editor.open(
-                sp, self.code_editor.get_template("tile", f"{tile.tile_type}_{x}_{y}")
+            sp = os.path.join(
+                world_dir, "behaviors", "tiles", f"tile_{x}_{y}.py"
             )
+            self._close_active_overlay()
+            self.code_editor.open(
+                sp, self.code_editor.get_template(
+                    "tile", f"{tile.tile_type}_{x}_{y}"
+                )
+            )
+            self._active_overlay = 'code_editor'
             tile.behavior_script = sp
             self.console.log(f"Opened tile editor ({x},{y}).", "#00FF00")
             self.tutorial.notify_task_complete("open_code_editor")
@@ -1153,11 +1341,11 @@ class Game:
                     self.console.log(f"Error: {e}", "#FF0000")
 
         def cmd_opentilemanager(args):
-            self.tile_type_manager.show()
+            self._open_exclusive_overlay('tile_type_manager')
             self.console.log("Tile manager opened.", "#00FF00")
 
         def cmd_openitemmanager(args):
-            self.item_type_manager.show()
+            self._open_exclusive_overlay('item_type_manager')
             self.console.log("Item manager opened.", "#00FF00")
 
         def cmd_opencustomize(args):
@@ -1165,33 +1353,48 @@ class Game:
             self.console.log("Player customize opened.", "#00FF00")
 
         def cmd_opensettings(args):
-            self._open_settings()
+            self._open_exclusive_overlay('settings')
             self.console.log("Settings opened.", "#00FF00")
+
+        def cmd_openspriteeditor(args):
+            """Open the sprite editor for the player from the console."""
+            self.open_sprite_editor(
+                target=self.player,
+                category='sprites'
+            )
+            self.console.log("Sprite editor opened.", "#00FF00")
 
         def cmd_help(args):
             if not args:
                 cmd_listcmds([])
                 return
             help_map = {
-                'spawn':           "spawn [type] [x] [y]  Types: npc, enemy",
-                'settile':         f"settile [x] [y] [type]  Auto-expands world. Types: {', '.join(settings.DEFAULT_TILE_TYPES)}",
-                'tp':              "tp [x] [y]  Teleport player to tile coords",
-                'listentities':    "List all entities with id and position",
-                'reload':          "reload [id]  Force reload behavior script",
-                'save':            "Force save world to disk",
-                'clear':           "Clear console log",
-                'listworlds':      "List all saved worlds",
-                'listcmds':        "List all commands",
-                'listitems':       "List player inventory",
-                'giveitem':        "giveitem [id] [qty]  Add item to inventory",
-                'settilecode':     "settilecode [x] [y]  Open tile script editor",
-                'setworldbg':      "setworldbg [path]  Set world background PNG/JPG",
-                'setplayersprite': "setplayersprite [path]  Set player sprite",
-                'opentilemanager': "Open in-game tile type manager",
-                'openitemmanager': "Open in-game item type manager",
-                'opencustomize':   "Open player customization panel",
-                'opensettings':    "Open settings menu",
-                'help':            "help [command]  Show help for command",
+                'spawn':            "spawn [type] [x] [y]  Types: npc, enemy",
+                'settile':          (
+                    f"settile [x] [y] [type]  Auto-expands world. "
+                    f"Types: {', '.join(settings.DEFAULT_TILE_TYPES)}"
+                ),
+                'tp':               "tp [x] [y]  Teleport player to tile coords",
+                'listentities':     "List all entities with id and position",
+                'reload':           "reload [id]  Force reload behavior script",
+                'save':             "Force save world to disk",
+                'clear':            "Clear console log",
+                'listworlds':       "List all saved worlds",
+                'listcmds':         "List all commands",
+                'listitems':        "List player inventory",
+                'giveitem':         "giveitem [id] [qty]  Add item to inventory",
+                'settilecode':      "settilecode [x] [y]  Open tile script editor",
+                'setworldbg':       "setworldbg [path]  Set world background PNG/JPG",
+                'setplayersprite':  "setplayersprite [path]  Set player sprite",
+                'opentilemanager':  "Open in-game tile type manager",
+                'openitemmanager':  "Open in-game item type manager",
+                'opencustomize':    "Open player customization panel",
+                'opensettings':     "Open settings menu",
+                'openspriteeditor': (
+                    "Open the sprite editor for the player. "
+                    "Closes any other open panel first."
+                ),
+                'help':             "help [command]  Show help for command",
             }
             name = args[0].lower()
             if name in help_map:
@@ -1200,17 +1403,26 @@ class Game:
                 self.console.log(f"No help for '{name}'.", "#FF0000")
 
         cmds = {
-            'spawn': cmd_spawn, 'settile': cmd_settile, 'tp': cmd_tp,
-            'listentities': cmd_listentities, 'reload': cmd_reload,
-            'save': cmd_save, 'clear': cmd_clear, 'listworlds': cmd_listworlds,
-            'listcmds': cmd_listcmds, 'listitems': cmd_listitems,
-            'giveitem': cmd_giveitem, 'settilecode': cmd_settilecode,
-            'setworldbg': cmd_setworldbg, 'setplayersprite': cmd_setplayersprite,
-            'opentilemanager': cmd_opentilemanager,
-            'openitemmanager': cmd_openitemmanager,
-            'opencustomize': cmd_opencustomize,
-            'opensettings': cmd_opensettings,
-            'help': cmd_help,
+            'spawn':            cmd_spawn,
+            'settile':          cmd_settile,
+            'tp':               cmd_tp,
+            'listentities':     cmd_listentities,
+            'reload':           cmd_reload,
+            'save':             cmd_save,
+            'clear':            cmd_clear,
+            'listworlds':       cmd_listworlds,
+            'listcmds':         cmd_listcmds,
+            'listitems':        cmd_listitems,
+            'giveitem':         cmd_giveitem,
+            'settilecode':      cmd_settilecode,
+            'setworldbg':       cmd_setworldbg,
+            'setplayersprite':  cmd_setplayersprite,
+            'opentilemanager':  cmd_opentilemanager,
+            'openitemmanager':  cmd_openitemmanager,
+            'opencustomize':    cmd_opencustomize,
+            'opensettings':     cmd_opensettings,
+            'openspriteeditor': cmd_openspriteeditor,
+            'help':             cmd_help,
         }
         for name, fn in cmds.items():
             self.console.register_command(name, fn)
