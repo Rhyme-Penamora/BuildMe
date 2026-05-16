@@ -42,6 +42,10 @@ class TileMap:
                     color=tile_data['color']
                 ))
             self.tiles.append(row)
+
+    def is_in_bounds(self, x: int, y: int) -> bool:
+        """Return True if the given grid coordinate exists inside the map."""
+        return 0 <= x < self.width and 0 <= y < self.height
     
     def get_tile(self, x: int, y: int) -> Optional[Tile]:
         """
@@ -54,7 +58,7 @@ class TileMap:
         Returns:
             Tile at position or None if out of bounds
         """
-        if 0 <= x < self.width and 0 <= y < self.height:
+        if self.is_in_bounds(x, y):
             return self.tiles[y][x]
         return None
     
@@ -70,7 +74,7 @@ class TileMap:
         Returns:
             True if successful, False if out of bounds
         """
-        if 0 <= x < self.width and 0 <= y < self.height:
+        if self.is_in_bounds(x, y):
             self.tiles[y][x] = tile
             return True
         return False
