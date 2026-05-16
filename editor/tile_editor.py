@@ -2,12 +2,12 @@
 # File: sandbox_game/editor/tile_editor.py
 # =============================================================================
 """
-Tile editor for placing, deleting, inspecting, and selecting tiles.
+Tile editor — Place/Delete/Inspect/Select with expansion support.
 """
 
 import pygame
 import pygame_gui
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 from world.tile_map import TileMap
 from world.tile import Tile
 from core.input_handler import InputHandler
@@ -15,105 +15,105 @@ import settings
 
 
 class TileEditor:
-    """
-    Tile editing system with Place, Delete, Inspect, and Select sub-modes.
-    """
+    """Tile editing with sub-modes and world expansion."""
 
     def __init__(self, ui_manager: pygame_gui.UIManager):
-        """
-        Initialize tile editor.
-
-        Args:
-            ui_manager: pygame_gui UIManager instance
-        """
         self.ui_manager = ui_manager
         self.active = False
         self.sub_mode = "Place"
         self.selected_tile_type = "floor"
         self.tile_palette_visible = False
+        self.on_expansion_needed: Optional[Callable[[str], None]] = None
 
-        screen_width = settings.SCREEN_WIDTH
-        screen_height = settings.SCREEN_HEIGHT
+        sw = settings.SCREEN_WIDTH
+        sh = settings.SCREEN_HEIGHT
 
-        palette_width = int(screen_width * 0.15)
-        palette_height = int(screen_height * 0.4)
-        palette_x = screen_width - palette_width - 10
-        palette_y = int(screen_height * 0.3)
+        pw = int(sw * 0.13)
+        ph = int(sh * 0.5)
+        px = sw - pw - 8
+        py = int(sh * 0.25)
 
         self.palette_panel = pygame_gui.elements.UIPanel(
-            relative_rect=pygame.Rect(
-                palette_x, palette_y, palette_width, palette_height
-            ),
+            relative_rect=pygame.Rect(px, py, pw, ph),
             manager=ui_manager
         )
         self.palette_panel.hide()
 
-        button_height = 40
-        button_spacing = 10
-        y_offset = 10
+        # Header label
+        pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(4, 4, pw - 8, 22),
+            text="TILES",
+            manager=ui_manager,
+            container=self.palette_panel
+        )
 
-        tile_types = list(settings.DEFAULT_TILE_TYPES.keys())
+        btn_h = 38
+        gap = 6
+        y = 30
+
         self.tile_buttons = {}
-
-        for tile_type in tile_types:
-            button = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(
-                    10, y_offset, palette_width - 20, button_height
-                ),
+        for tile_type in settings.DEFAULT_TILE_TYPES:
+            td = settings.DEFAULT_TILE_TYPES[tile_type]
+            btn = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(6, y, pw - 12, btn_h),
                 text=tile_type.capitalize(),
                 manager=ui_manager,
                 container=self.palette_panel
             )
-            self.tile_buttons[tile_type] = button
-            y_offset += button_height + button_spacing
+            self.tile_buttons[tile_type] = btn
+            y += btn_h + gap
+
+        # Sub-mode buttons
+        sub_label_y = y + 6
+        pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(4, sub_label_y, pw - 8, 20),
+            text="MODE",
+            manager=ui_manager,
+            container=self.palette_panel
+        )
+        y = sub_label_y + 24
+
+        self._sub_buttons = {}
+        for key, label in [("Place","1:Place"),("Delete","2:Delete"),
+                            ("Inspect","3:Inspect"),("Select","4:Select")]:
+            btn = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(6, y, pw - 12, 32),
+                text=label,
+                manager=ui_manager,
+                container=self.palette_panel
+            )
+            self._sub_buttons[key] = btn
+            y += 32 + 4
 
     def activate(self) -> None:
-        """Activate build mode."""
         self.active = True
-        self.tile_palette_visible = True
         self.palette_panel.show()
 
     def deactivate(self) -> None:
-        """Deactivate build mode."""
         self.active = False
-        self.tile_palette_visible = False
         self.palette_panel.hide()
 
     def toggle(self) -> None:
-        """Toggle build mode."""
         if self.active:
             self.deactivate()
         else:
             self.activate()
 
     def set_sub_mode(self, mode: str) -> None:
-        """
-        Set current sub-mode. Inspect and Select are mutually exclusive.
-
-        Args:
-            mode: Sub-mode name (Place, Delete, Inspect, Select)
-        """
         self.sub_mode = mode
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        """
-        Handle UI events for the tile palette.
-
-        Args:
-            event: pygame event
-
-        Returns:
-            True if event was handled
-        """
         if not self.active:
             return False
-
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
-            for tile_type, button in self.tile_buttons.items():
-                if event.ui_element == button:
+            for tile_type, btn in self.tile_buttons.items():
+                if event.ui_element == btn:
                     self.selected_tile_type = tile_type
                     return True
-
+            for mode, btn in self._sub_buttons.items():
+                if event.ui_element == btn:
+                    self.sub_mode = mode
+                    return True
         return False
 
     def update(
@@ -122,81 +122,68 @@ class TileEditor:
         tile_map: TileMap,
         camera_offset: Tuple[float, float]
     ) -> None:
-        """
-        Update tile editor — handle mouse clicks for placing/deleting/inspecting.
-
-        Args:
-            input_handler: InputHandler instance
-            tile_map: TileMap to edit
-            camera_offset: Current camera offset (x, y)
-        """
         if not self.active:
             return
-
         if input_handler.is_mouse_button_just_pressed(0):
-            mouse_pos = input_handler.get_mouse_pos()
+            mx, my = input_handler.get_mouse_pos()
 
-            world_x = mouse_pos[0] + camera_offset[0]
-            world_y = mouse_pos[1] + camera_offset[1]
+            # Don't act if clicking inside palette panel
+            pw = int(settings.SCREEN_WIDTH * 0.13)
+            ph = int(settings.SCREEN_HEIGHT * 0.5)
+            px = settings.SCREEN_WIDTH - pw - 8
+            py = int(settings.SCREEN_HEIGHT * 0.25)
+            if pygame.Rect(px, py, pw, ph).collidepoint(mx, my):
+                return
 
-            grid_x, grid_y = tile_map.world_to_grid(world_x, world_y)
+            world_x = mx + camera_offset[0]
+            world_y = my + camera_offset[1]
+            gx, gy = tile_map.world_to_grid(world_x, world_y)
 
             if self.sub_mode == "Place":
-                self._place_tile(tile_map, grid_x, grid_y)
+                self._place_tile(tile_map, gx, gy)
             elif self.sub_mode == "Delete":
-                self._delete_tile(tile_map, grid_x, grid_y)
+                self._delete_tile(tile_map, gx, gy)
             elif self.sub_mode == "Inspect":
-                self._inspect_tile(tile_map, grid_x, grid_y)
+                self._inspect_tile(tile_map, gx, gy)
 
     def _place_tile(self, tile_map: TileMap, x: int, y: int) -> None:
-        """
-        Place selected tile type at grid coordinates.
+        """Place tile, trigger expansion if at/outside edge."""
+        if not tile_map.is_in_bounds(x, y):
+            direction = tile_map.get_expansion_direction(x, y)
+            if direction and self.on_expansion_needed:
+                self.on_expansion_needed(direction)
+            return
 
-        Args:
-            tile_map: TileMap to modify
-            x: Grid x coordinate
-            y: Grid y coordinate
-        """
-        tile_data = settings.DEFAULT_TILE_TYPES.get(self.selected_tile_type)
-        if tile_data:
-            new_tile = Tile(
-                tile_type=self.selected_tile_type,
-                is_solid=tile_data['is_solid'],
-                movement_modifier=tile_data['movement_modifier'],
-                color=tile_data['color']
+        # Also trigger expansion prompt when placing on exact edge
+        if tile_map.is_at_edge(x, y) and self.on_expansion_needed:
+            direction = tile_map.get_expansion_direction(
+                x - 1 if x == 0 else (x + 1 if x == tile_map.width - 1 else x),
+                y - 1 if y == 0 else (y + 1 if y == tile_map.height - 1 else y)
             )
-            tile_map.set_tile(x, y, new_tile)
+            if direction:
+                self.on_expansion_needed(direction)
+
+        td = settings.DEFAULT_TILE_TYPES.get(self.selected_tile_type)
+        if td:
+            tile_map.set_tile(x, y, Tile(
+                self.selected_tile_type,
+                td['is_solid'],
+                td['movement_modifier'],
+                td['color']
+            ))
 
     def _delete_tile(self, tile_map: TileMap, x: int, y: int) -> None:
-        """
-        Replace tile with floor at grid coordinates.
-
-        Args:
-            tile_map: TileMap to modify
-            x: Grid x coordinate
-            y: Grid y coordinate
-        """
-        tile_data = settings.DEFAULT_TILE_TYPES['floor']
-        floor_tile = Tile(
-            tile_type='floor',
-            is_solid=tile_data['is_solid'],
-            movement_modifier=tile_data['movement_modifier'],
-            color=tile_data['color']
-        )
-        tile_map.set_tile(x, y, floor_tile)
+        if not tile_map.is_in_bounds(x, y):
+            return
+        td = settings.DEFAULT_TILE_TYPES['floor']
+        tile_map.set_tile(x, y, Tile(
+            'floor', td['is_solid'], td['movement_modifier'], td['color']
+        ))
 
     def _inspect_tile(self, tile_map: TileMap, x: int, y: int) -> None:
-        """
-        Print tile properties to console output.
-
-        Args:
-            tile_map: TileMap to inspect
-            x: Grid x coordinate
-            y: Grid y coordinate
-        """
         tile = tile_map.get_tile(x, y)
         if tile:
             print(
                 f"Tile ({x},{y}): type={tile.tile_type} "
-                f"solid={tile.is_solid} modifier={tile.movement_modifier}"
+                f"solid={tile.is_solid} mod={tile.movement_modifier}"
             )
